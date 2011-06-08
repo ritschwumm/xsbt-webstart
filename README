@@ -1,0 +1,40 @@
+A Webstart plugin for xsbt
+
+At the moment, this is only a rough draft, just enough to get my own
+projects running. Let me know what you think.
+
+To build this code, get and install SBT from 
+    https://github.com/harrah/xsbt
+
+Build and publish the plugin:
+    git clone git@github.com:ritschwumm/xstb-webstart.git
+    cd xstb-webstart
+    sbt publish-local
+    
+Add the plugin to your project in project/plugins/build.sbt:
+    libraryDependencies += "de.djini" %% "xsbt-webstart" % "0.0.1"
+    
+Include the plugin in you project's build.sbt:
+
+    seq(WebStartPlugin.allSettings:_*)
+    
+    webstartMainClass   := "my.Main"
+    
+    webstartKeyConf := KeyConf(
+        keyStore    = file("my/keyStore"),
+        storePass   = "password",
+        alias       = "alias",
+        keyPass     = "password"
+    )
+    
+    webstartJnlpConf    := JnlpConf(
+        fileName        = "my.jnlp",
+        codeBase        = "http://my.test/webstart/",
+        title           = "My Title",
+        vendor          = "My Company",
+        description     = "My Webstart Project",
+        offlineAllowed  = true,
+        allPermissions  = true,
+        j2seVersion     = "1.6+",
+        maxHeapSize     = 192
+    )

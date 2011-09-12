@@ -27,6 +27,8 @@ object WebStartPlugin extends Plugin {
 		title:String,
 		vendor:String,
 		description:String,
+		iconName:Option[String],
+		splashName:Option[String],
 		offlineAllowed:Boolean,
 		// NOTE if this is true, signing is mandatory
 		allPermissions:Boolean,
@@ -41,6 +43,7 @@ object WebStartPlugin extends Plugin {
 	val webstartBuild			= TaskKey[File]("webstart")
 	val webstartAssets			= TaskKey[Seq[Asset]]("webstart-assets")
 	val webstartOutputDirectory	= SettingKey[File]("webstart-output-directory")
+	val webstartResources		= SettingKey[PathFinder]("webstart-resources")
 	val webstartMainClass		= SettingKey[String]("webstart-main-class")
 	val webstartGenConf			= SettingKey[GenConf]("webstart-gen-conf")
 	val webstartKeyConf			= SettingKey[KeyConf]("webstart-key-conf")                   
@@ -49,15 +52,16 @@ object WebStartPlugin extends Plugin {
 		
 	// webstartJnlp		<<= (Keys.name) { it => it + ".jnlp" },
 	lazy val allSettings	= Seq(
-		webstartKeygen			<<= keygenTask,
-		webstartBuild			<<= buildTask,
-		webstartAssets			<<= assetsTask,
-		webstartOutputDirectory	<<= (Keys.crossTarget) { _ / "webstart" },
-		webstartMainClass		:= null,
-		webstartGenConf			:= null,
-		webstartKeyConf			:= null,
-		webstartJnlpConf		:= null,
-		webstartExtraFiles		:= Seq.empty
+		webstartKeygen				<<= keygenTask,
+		webstartBuild				<<= buildTask,
+		webstartAssets				<<= assetsTask,
+		webstartOutputDirectory		<<= (Keys.crossTarget) { _ / "webstart" },
+		webstartResources			<<= (Keys.sourceDirectory in Runtime) { _ / "webstart" },
+		webstartMainClass			:= null,
+		webstartGenConf				:= null,
+		webstartKeyConf				:= null,
+		webstartJnlpConf			:= null,
+		webstartExtraFiles			:= Seq.empty
 	)
 	
 	case class Asset(main:Boolean, fresh:Boolean, jar:File) {
@@ -68,10 +72,10 @@ object WebStartPlugin extends Plugin {
 	//## tasks
 	
 	private def buildTask:Initialize[Task[File]] = {
-		(Keys.streams,			webstartAssets, webstartMainClass,	webstartKeyConf,	webstartJnlpConf,	webstartExtraFiles, 	webstartOutputDirectory) map {
-		(streams:TaskStreams,	assets,			mainClass:String,	keyConf:KeyConf,	jnlpConf:JnlpConf,	extraFiles:Seq[File],	outputDirectory:File) => {
+		(Keys.streams,			webstartAssets, webstartMainClass,	webstartKeyConf,	webstartJnlpConf,	webstartResources, 				webstartExtraFiles, 	webstartOutputDirectory) map {
+		(streams:TaskStreams,	assets,			mainClass:String,	keyConf:KeyConf,	jnlpConf:JnlpConf,	webstartResources:PathFinder,	extraFiles:Seq[File],	outputDirectory:File) => {
 			require(mainClass 	!= null, webstartMainClass.key.label	+ " must be set")
-			require(jnlpConf	!= null, webstartJnlpConf.key.label	+ " must be set")
+			require(jnlpConf	!= null, webstartJnlpConf.key.label		+ " must be set")
 			
 			val freshAssets	= assets filter { _.fresh }
 			if (keyConf != null && freshAssets.nonEmpty) {
@@ -92,13 +96,25 @@ object WebStartPlugin extends Plugin {
 			val jnlpFile	= outputDirectory / jnlpConf.fileName
 			writeJnlp(jnlpConf, assets, mainClass, jnlpFile)
 			
+			// TODO check
+			// Keys.defaultExcludes
+			streams.log info ("copying resources")
+			val resourcesToCopy	=
+					for {
+						dir		<- webstartResources.get
+						file	<- dir.***.get
+						target	= Path.rebase(dir, outputDirectory)(file).get
+					}
+					yield (file, target)
+			val resourcesCopied	= IO copy resourcesToCopy
+		
 			streams.log info ("copying extra files")
 			val extraCopied	= IO copy (extraFiles map { it => (it, outputDirectory / it.getName) })
 			
 			streams.log info ("cleaning up")
 			val allFiles	= (outputDirectory * "*").get.toSet
 			val assetJars	= assets map { _.jar }
-			val obsolete	= allFiles -- assetJars -- extraCopied - jnlpFile 
+			val obsolete	= allFiles -- assetJars -- resourcesCopied -- extraCopied - jnlpFile 
 			IO delete obsolete
 			
 			outputDirectory
@@ -137,6 +153,8 @@ object WebStartPlugin extends Plugin {
 						<title>{jnlpConf.title}</title>
 						<vendor>{jnlpConf.vendor}</vendor>
 						<description>{jnlpConf.description}</description>
+						{ jnlpConf.iconName.toSeq map { it => <icon href={it}/> } }
+						{ jnlpConf.splashName.toSeq map { it => <icon href={it} kind="splash"/> } }
 						{ if (jnlpConf.offlineAllowed) Seq(<offline-allowed/>) else Seq.empty }
 					</information>
 					<security>
@@ -180,8 +198,8 @@ object WebStartPlugin extends Plugin {
 			}
 			
 			val assets	= archiveAssets ++ directoryAssets
-			val (freshAssets,staleAssets)	= assets partition { _.fresh }
-			streams.log info (freshAssets.size + " fresh jars, " + staleAssets.size + " stale jars")
+			val (freshAssets,unchangedAssets)	= assets partition { _.fresh }
+			streams.log info (freshAssets.size + " fresh jars, " + unchangedAssets.size + " unchanged jars")
 			
 			assets
 		}}

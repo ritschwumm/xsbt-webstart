@@ -12,7 +12,7 @@ Build and publish the plugin:
     sbt publish-local
     
 Add the plugin to your project in project/plugins/build.sbt:
-    libraryDependencies += "de.djini" %% "xsbt-webstart" % "0.0.1"
+    addSbtPlugin("de.djini" % "xsbt-webstart" % "0.0.3")
     
 Include the plugin in you project's build.sbt:
 
@@ -20,6 +20,11 @@ Include the plugin in you project's build.sbt:
     
     webstartMainClass   := "my.Main"
     
+    webstartGenConf := GenConf(
+        dname       = "CN=Snake Oil, OU=An Anonymous Hacker, O=Bad Guys Inc., L=Bielefeld, ST=33641, C=DE",
+        validity    = 365
+    )
+
     webstartKeyConf := KeyConf(
         keyStore    = file("my/keyStore"),
         storePass   = "password",
@@ -38,3 +43,8 @@ Include the plugin in you project's build.sbt:
         j2seVersion     = "1.6+",
         maxHeapSize     = 192
     )
+
+Once set up you can use the following tasks in sbt:
+
+    webstart        creates a directory with a JNLP file and all necessary jar files
+    webstart-keygen creates a keyStore, fails if it already exists

@@ -133,7 +133,7 @@ object WebStartPlugin extends Plugin {
 			jar.getAbsolutePath,
 			keyConf.alias
 		)) ! log
-		if (rc1 != 0)	error("sign failed: " + rc1)
+		if (rc1 != 0)	sys error ("sign failed: " + rc1)
 	
 		val rc2	= Process("jarsigner", List(
 			"-verify",
@@ -142,7 +142,7 @@ object WebStartPlugin extends Plugin {
 			"-keypass",		keyConf.keyPass,
 			jar.getAbsolutePath
 		)) ! log
-		if (rc2 != 0)	error("verify failed: " + rc2)
+		if (rc2 != 0)	sys error ("verify failed: " + rc2)
 	}
 	
 	private def writeJnlp(jnlpConf:JnlpConf, assets:Seq[Asset], mainClass:String, targetFile:File) {
@@ -272,6 +272,6 @@ object WebStartPlugin extends Plugin {
 			"-keypass",		keyConf.keyPass,
 			"-alias",		keyConf.alias
 		)) ! log
-		if (rc != 0)	error("key gen failed: " + rc)
+		if (rc != 0)	sys error ("key gen failed: " + rc)
 	}
 }

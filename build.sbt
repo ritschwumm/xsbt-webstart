@@ -4,9 +4,9 @@ name			:= "xsbt-webstart"
 
 organization	:= "de.djini"
 
-version			:= "0.0.1"
+version			:= "0.0.3"
 
-scalaVersion	:= "2.8.1"
+scalaVersion	:= "2.9.1"
 
 //publishArtifact in (Compile, packageBin)	:= false
 

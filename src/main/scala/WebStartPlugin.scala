@@ -22,6 +22,7 @@ object WebStartPlugin extends Plugin {
 	)
 	
 	case class JnlpConf(
+		mainClass:String,
 		fileName:String,
 		codeBase:String,
 		title:String,
@@ -44,10 +45,9 @@ object WebStartPlugin extends Plugin {
 	val webstartAssets			= TaskKey[Seq[Asset]]("webstart-assets")
 	val webstartOutputDirectory	= SettingKey[File]("webstart-output-directory")
 	val webstartResources		= SettingKey[PathFinder]("webstart-resources")
-	val webstartMainClass		= SettingKey[String]("webstart-main-class")
 	val webstartGenConf			= SettingKey[GenConf]("webstart-gen-conf")
 	val webstartKeyConf			= SettingKey[KeyConf]("webstart-key-conf")                   
-	val webstartJnlpConf		= SettingKey[JnlpConf]("webstart-jnlp-conf")
+	val webstartJnlpConf		= SettingKey[Seq[JnlpConf]]("webstart-jnlp-conf")
 	val webstartExtraFiles		= TaskKey[Seq[File]]("webstart-extra-files")
 		
 	// webstartJnlp		<<= (Keys.name) { it => it + ".jnlp" },
@@ -57,10 +57,9 @@ object WebStartPlugin extends Plugin {
 		webstartAssets				<<= assetsTask,
 		webstartOutputDirectory		<<= (Keys.crossTarget) { _ / "webstart" },
 		webstartResources			<<= (Keys.sourceDirectory in Runtime) { _ / "webstart" },
-		webstartMainClass			:= null,
 		webstartGenConf				:= null,
 		webstartKeyConf				:= null,
-		webstartJnlpConf			:= null,
+		webstartJnlpConf			:= Seq.empty,
 		webstartExtraFiles			:= Seq.empty
 	)
 	
@@ -72,10 +71,9 @@ object WebStartPlugin extends Plugin {
 	//## tasks
 	
 	private def buildTask:Initialize[Task[File]] = {
-		(Keys.streams,			webstartAssets, webstartMainClass,	webstartKeyConf,	webstartJnlpConf,	webstartResources, 				webstartExtraFiles, 	webstartOutputDirectory) map {
-		(streams:TaskStreams,	assets,			mainClass:String,	keyConf:KeyConf,	jnlpConf:JnlpConf,	webstartResources:PathFinder,	extraFiles:Seq[File],	outputDirectory:File) => {
-			require(mainClass 	!= null, webstartMainClass.key.label	+ " must be set")
-			require(jnlpConf	!= null, webstartJnlpConf.key.label		+ " must be set")
+		(Keys.streams,			webstartAssets, webstartKeyConf,	webstartJnlpConf,			webstartResources, 				webstartExtraFiles, 	webstartOutputDirectory) map {
+		(streams:TaskStreams,	assets,			keyConf:KeyConf,	jnlpConfs:Seq[JnlpConf],	webstartResources:PathFinder,	extraFiles:Seq[File],	outputDirectory:File) => {
+			// require(jnlpConf	!= null, webstartJnlpConf.key.label		+ " must be set")
 			
 			val freshAssets	= assets filter { _.fresh }
 			if (keyConf != null && freshAssets.nonEmpty) {
@@ -92,9 +90,10 @@ object WebStartPlugin extends Plugin {
 			}
 			
 			// @see http://download.oracle.com/javase/tutorial/deployment/deploymentInDepth/jnlpFileSyntax.html
-			streams.log info ("creating jnlp descriptor")
-			val jnlpFile	= outputDirectory / jnlpConf.fileName
-			writeJnlp(jnlpConf, assets, mainClass, jnlpFile)
+			streams.log info ("creating jnlp descriptor(s)")
+			val confFiles:Seq[(JnlpConf,File)]	= jnlpConfs map { it => (it, outputDirectory / it.fileName) }
+			confFiles foreach { case (jnlpConf, jnlpFile) => writeJnlp(jnlpConf, assets, jnlpFile) }
+			val jnlpFiles	= confFiles map { _._2 }
 			
 			// TODO check
 			// Keys.defaultExcludes
@@ -114,7 +113,7 @@ object WebStartPlugin extends Plugin {
 			streams.log info ("cleaning up")
 			val allFiles	= (outputDirectory * "*").get.toSet
 			val assetJars	= assets map { _.jar }
-			val obsolete	= allFiles -- assetJars -- resourcesCopied -- extraCopied - jnlpFile 
+			val obsolete	= allFiles -- assetJars -- resourcesCopied -- extraCopied -- jnlpFiles 
 			IO delete obsolete
 			
 			outputDirectory
@@ -145,7 +144,7 @@ object WebStartPlugin extends Plugin {
 		if (rc2 != 0)	sys error ("verify failed: " + rc2)
 	}
 	
-	private def writeJnlp(jnlpConf:JnlpConf, assets:Seq[Asset], mainClass:String, targetFile:File) {
+	private def writeJnlp(jnlpConf:JnlpConf, assets:Seq[Asset], targetFile:File) {
 		val xml	= 
 				"""<?xml version="1.0" encoding="utf-8"?>""" + "\n" +
 				<jnlp spec="1.5+" codebase={jnlpConf.codeBase} href={jnlpConf.fileName}>
@@ -164,7 +163,7 @@ object WebStartPlugin extends Plugin {
 						<j2se version={jnlpConf.j2seVersion}  max-heap-size={jnlpConf.maxHeapSize + "m"}/>
 						{ assets map { it => <jar href={it.name} main={it.main.toString} /> } }
 					</resources>
-					<application-desc main-class={mainClass}/>
+					<application-desc main-class={jnlpConf.mainClass}/>
 				</jnlp>
 		IO write (targetFile, xml)
 	}

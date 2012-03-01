@@ -12,13 +12,11 @@ Build and publish the plugin:
     sbt publish-local
     
 Add the plugin to your project in project/plugins/build.sbt:
-    addSbtPlugin("de.djini" % "xsbt-webstart" % "0.0.3")
+    addSbtPlugin("de.djini" % "xsbt-webstart" % "0.0.4")
     
 Include the plugin in you project's build.sbt:
 
     seq(WebStartPlugin.allSettings:_*)
-    
-    webstartMainClass   := "my.Main"
     
     webstartGenConf := GenConf(
         dname       = "CN=Snake Oil, OU=An Anonymous Hacker, O=Bad Guys Inc., L=Bielefeld, ST=33641, C=DE",
@@ -33,6 +31,7 @@ Include the plugin in you project's build.sbt:
     )
     
     webstartJnlpConf    := JnlpConf(
+        mainClass		= "my.Main",
         fileName        = "my.jnlp",
         codeBase        = "http://my.test/webstart/",
         title           = "My Title",

@@ -12,7 +12,7 @@ Build and publish the plugin:
     sbt publish-local
     
 Add the plugin to your project in project/plugins/build.sbt:
-    addSbtPlugin("de.djini" % "xsbt-webstart" % "0.0.4")
+    addSbtPlugin("de.djini" % "xsbt-webstart" % "0.0.5")
     
 Include the plugin in you project's build.sbt:
 
@@ -30,7 +30,7 @@ Include the plugin in you project's build.sbt:
         keyPass     = "password"
     )
     
-    webstartJnlpConf    := JnlpConf(
+    webstartJnlpConf    := Seq(JnlpConf(
         mainClass		= "my.Main",
         fileName        = "my.jnlp",
         codeBase        = "http://my.test/webstart/",
@@ -41,7 +41,7 @@ Include the plugin in you project's build.sbt:
         allPermissions  = true,
         j2seVersion     = "1.6+",
         maxHeapSize     = 192
-    )
+    ))
 
 Once set up you can use the following tasks in sbt:
 

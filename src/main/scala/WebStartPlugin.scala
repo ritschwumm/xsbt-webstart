@@ -70,54 +70,69 @@ object WebStartPlugin extends Plugin {
 	//------------------------------------------------------------------------------
 	//## tasks
 	
-	private def buildTask:Initialize[Task[File]] = {
-		(Keys.streams,			webstartAssets, webstartKeyConf,	webstartJnlpConf,			webstartResources, 				webstartExtraFiles, 	webstartOutputDirectory) map {
-		(streams:TaskStreams,	assets,			keyConf:KeyConf,	jnlpConfs:Seq[JnlpConf],	webstartResources:PathFinder,	extraFiles:Seq[File],	outputDirectory:File) => {
-			// require(jnlpConf	!= null, webstartJnlpConf.key.label		+ " must be set")
-			
-			val freshAssets	= assets filter { _.fresh }
-			if (keyConf != null && freshAssets.nonEmpty) {
-				streams.log info ("signing jars")
-				freshAssets foreach { asset =>
-					signAndVerify(keyConf, asset.jar, streams.log)
-				}
-			}
-			else if (keyConf == null) {
-				streams.log info ("missing KeyConf, leaving jar files unsigned")
-			}
-			else {
-				streams.log info ("no fresh jars to sign")
-			}
-			
-			// @see http://download.oracle.com/javase/tutorial/deployment/deploymentInDepth/jnlpFileSyntax.html
-			streams.log info ("creating jnlp descriptor(s)")
-			val confFiles:Seq[(JnlpConf,File)]	= jnlpConfs map { it => (it, outputDirectory / it.fileName) }
-			confFiles foreach { case (jnlpConf, jnlpFile) => writeJnlp(jnlpConf, assets, jnlpFile) }
-			val jnlpFiles	= confFiles map { _._2 }
-			
-			// TODO check
-			// Keys.defaultExcludes
-			streams.log info ("copying resources")
-			val resourcesToCopy	=
-					for {
-						dir		<- webstartResources.get
-						file	<- dir.***.get
-						target	= Path.rebase(dir, outputDirectory)(file).get
-					}
-					yield (file, target)
-			val resourcesCopied	= IO copy resourcesToCopy
+	private def buildTask:Initialize[Task[File]] = (
+		Keys.streams,
+		webstartAssets,
+		webstartKeyConf,
+		webstartJnlpConf,
+		webstartResources,
+		webstartExtraFiles,
+		webstartOutputDirectory
+	) map buildTaskImpl
+	
+	private def buildTaskImpl(
+		streams:TaskStreams,	
+		assets:Seq[Asset],
+		keyConf:KeyConf,
+		jnlpConfs:Seq[JnlpConf],
+		webstartResources:PathFinder,
+		extraFiles:Seq[File],
+		outputDirectory:File
+	):File	= {
+		// require(jnlpConf	!= null, webstartJnlpConf.key.label		+ " must be set")
 		
-			streams.log info ("copying extra files")
-			val extraCopied	= IO copy (extraFiles map { it => (it, outputDirectory / it.getName) })
-			
-			streams.log info ("cleaning up")
-			val allFiles	= (outputDirectory * "*").get.toSet
-			val assetJars	= assets map { _.jar }
-			val obsolete	= allFiles -- assetJars -- resourcesCopied -- extraCopied -- jnlpFiles 
-			IO delete obsolete
-			
-			outputDirectory
-		}}
+		val freshAssets	= assets filter { _.fresh }
+		if (keyConf != null && freshAssets.nonEmpty) {
+			streams.log info ("signing jars")
+			freshAssets.par foreach { asset =>
+				signAndVerify(keyConf, asset.jar, streams.log)
+			}
+		}
+		else if (keyConf == null) {
+			streams.log info ("missing KeyConf, leaving jar files unsigned")
+		}
+		else {
+			streams.log info ("no fresh jars to sign")
+		}
+		
+		// @see http://download.oracle.com/javase/tutorial/deployment/deploymentInDepth/jnlpFileSyntax.html
+		streams.log info ("creating jnlp descriptor(s)")
+		val confFiles:Seq[(JnlpConf,File)]	= jnlpConfs map { it => (it, outputDirectory / it.fileName) }
+		confFiles foreach { case (jnlpConf, jnlpFile) => writeJnlp(jnlpConf, assets, jnlpFile) }
+		val jnlpFiles	= confFiles map { _._2 }
+		
+		// TODO check
+		// Keys.defaultExcludes
+		streams.log info ("copying resources")
+		val resourcesToCopy	=
+				for {
+					dir		<- webstartResources.get
+					file	<- dir.***.get
+					target	= Path.rebase(dir, outputDirectory)(file).get
+				}
+				yield (file, target)
+		val resourcesCopied	= IO copy resourcesToCopy
+	
+		streams.log info ("copying extra files")
+		val extraCopied	= IO copy (extraFiles map { it => (it, outputDirectory / it.getName) })
+		
+		streams.log info ("cleaning up")
+		val allFiles	= (outputDirectory * "*").get.toSet
+		val assetJars	= assets map { _.jar }
+		val obsolete	= allFiles -- assetJars -- resourcesCopied -- extraCopied -- jnlpFiles 
+		IO delete obsolete
+		
+		outputDirectory
 	}
 	
 	private def signAndVerify(keyConf:KeyConf, jar:File, log:Logger) {
@@ -171,37 +186,48 @@ object WebStartPlugin extends Plugin {
 	//------------------------------------------------------------------------------
 	//## jar files
 	
-	private def assetsTask:Initialize[Task[Seq[Asset]]]	= {
+	private def assetsTask:Initialize[Task[Seq[Asset]]]	= (
 		// BETTER use dependencyClasspath and products instead of fullClasspath?
 		// BETTER use exportedProducts instead of products?
-		(Keys.streams,			Keys.products in Runtime,	Keys.fullClasspath in Runtime,	Keys.cacheDirectory,	webstartOutputDirectory) map {
-		(streams:TaskStreams,	products,					fullClasspath,					cacheDirectory:File,	outputDirectory:File) => {
-			// NOTE for directories, the package should be named after the artifact they come from
-			val (archives, directories)	= fullClasspath.files.distinct partition ClasspathUtilities.isArchive
-			
-			streams.log info ("creating directory jars")
-			val directoryAssets	= directories.zipWithIndex map { case (source, index) =>
-				val main	= products contains source
-				val cache	= cacheDirectory / webstartAssets.key.label / index.toString
-				val target	= outputDirectory / (index + ".jar")
-				val fresh	= jarDirectory(source, cache, target)
-				Asset(main, fresh, target)
-			}
-			
-			streams.log info ("copying library jars")
-			val archiveAssets	= archives map { source =>
-				val main	= products contains source
-				val	target	= outputDirectory / source.getName 
-				val fresh	= copyArchive(source, target)
-				Asset(main, fresh, target)
-			}
-			
-			val assets	= archiveAssets ++ directoryAssets
-			val (freshAssets,unchangedAssets)	= assets partition { _.fresh }
-			streams.log info (freshAssets.size + " fresh jars, " + unchangedAssets.size + " unchanged jars")
-			
-			assets
-		}}
+		Keys.streams,
+		Keys.products in Runtime,
+		Keys.fullClasspath in Runtime,
+		Keys.cacheDirectory,
+		webstartOutputDirectory
+	) map assetsTaskImpl
+		
+	private def assetsTaskImpl(
+		streams:TaskStreams,
+		products:Seq[File],
+		fullClasspath:Classpath,
+		cacheDirectory:File,
+		outputDirectory:File
+	):Seq[Asset]	= {
+		// NOTE for directories, the package should be named after the artifact they come from
+		val (archives, directories)	= fullClasspath.files.distinct partition ClasspathUtilities.isArchive
+		
+		streams.log info ("creating directory jars")
+		val directoryAssets	= directories.zipWithIndex map { case (source, index) =>
+			val main	= products contains source
+			val cache	= cacheDirectory / webstartAssets.key.label / index.toString
+			val target	= outputDirectory / (index + ".jar")
+			val fresh	= jarDirectory(source, cache, target)
+			Asset(main, fresh, target)
+		}
+		
+		streams.log info ("copying library jars")
+		val archiveAssets	= archives map { source =>
+			val main	= products contains source
+			val	target	= outputDirectory / source.getName 
+			val fresh	= copyArchive(source, target)
+			Asset(main, fresh, target)
+		}
+		
+		val assets	= archiveAssets ++ directoryAssets
+		val (freshAssets,unchangedAssets)	= assets partition { _.fresh }
+		streams.log info (freshAssets.size + " fresh jars, " + unchangedAssets.size + " unchanged jars")
+		
+		assets
 	}
 	
 	private def copyArchive(sourceFile:File, targetFile:File):Boolean	= {
@@ -251,14 +277,21 @@ object WebStartPlugin extends Plugin {
 	
 	//------------------------------------------------------------------------------
 	
-	private def keygenTask:Initialize[Task[Unit]] = {
-		(Keys.streams,			webstartGenConf,	webstartKeyConf) map {
-		(streams:TaskStreams,	genConf:GenConf,	keyConf:KeyConf) => {
-			streams.log info ("creating webstart key in " + keyConf.keyStore)
-			require(genConf	!= null, webstartGenConf.key.label	+ " must be set")
-			require(keyConf	!= null, webstartKeyConf.key.label	+ " must be set")
-			genkey(keyConf, genConf, streams.log)
-		}}
+	private def keygenTask:Initialize[Task[Unit]] = (
+		Keys.streams,
+		webstartGenConf,
+		webstartKeyConf
+	) map keygenTaskImpl
+			
+	private def keygenTaskImpl(
+		streams:TaskStreams,
+		genConf:GenConf,
+		keyConf:KeyConf
+	) {
+		streams.log info ("creating webstart key in " + keyConf.keyStore)
+		require(genConf	!= null, webstartGenConf.key.label	+ " must be set")
+		require(keyConf	!= null, webstartKeyConf.key.label	+ " must be set")
+		genkey(keyConf, genConf, streams.log)
 	}
 	
 	private def genkey(keyConf:KeyConf, genConf:GenConf, log:Logger) {

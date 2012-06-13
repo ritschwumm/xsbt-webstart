@@ -7,7 +7,7 @@ To build this code, get and install SBT from
     https://github.com/harrah/xsbt
 
 Build and publish the plugin:
-    git clone git@github.com:ritschwumm/xstb-webstart.git
+    git clone git@github.com:ritschwumm/xsbt-webstart.git
     cd xstb-webstart
     sbt publish-local
     

@@ -6,6 +6,9 @@ projects running. Let me know what you think.
 To build this code, get and install SBT from 
     https://github.com/harrah/xsbt
 
+Get and install this plugin before building:
+	https://github.com/ritschwumm/xsbt-classpath
+	
 Build and publish the plugin:
     git clone git@github.com:ritschwumm/xsbt-webstart.git
     cd xsbt-webstart
@@ -16,7 +19,7 @@ Add the plugin to your project in project/plugins/build.sbt:
     
 Include the plugin in you project's build.sbt:
 
-    seq(WebStartPlugin.allSettings:_*)
+	webstartSettings
     
     webstartGenConf := GenConf(
         dname       = "CN=Snake Oil, OU=An Anonymous Hacker, O=Bad Guys Inc., L=Bielefeld, ST=33641, C=DE",

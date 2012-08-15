@@ -5,6 +5,8 @@ import Keys.TaskStreams
 import Project.Initialize
 import classpath.ClasspathUtilities
 
+import ClasspathPlugin._
+
 object WebStartPlugin extends Plugin {
 	//------------------------------------------------------------------------------
 	//## configuration objects
@@ -42,7 +44,6 @@ object WebStartPlugin extends Plugin {
 	
 	val webstartKeygen			= TaskKey[Unit]("webstart-keygen")
 	val webstartBuild			= TaskKey[File]("webstart")
-	val webstartAssets			= TaskKey[Seq[Asset]]("webstart-assets")
 	val webstartOutputDirectory	= SettingKey[File]("webstart-output-directory")
 	val webstartResources		= SettingKey[PathFinder]("webstart-resources")
 	val webstartGenConf			= SettingKey[GenConf]("webstart-gen-conf")
@@ -51,28 +52,23 @@ object WebStartPlugin extends Plugin {
 	val webstartExtraFiles		= TaskKey[Seq[File]]("webstart-extra-files")
 		
 	// webstartJnlp		<<= (Keys.name) { it => it + ".jnlp" },
-	lazy val allSettings	= Seq(
-		webstartKeygen				<<= keygenTask,
-		webstartBuild				<<= buildTask,
-		webstartAssets				<<= assetsTask,
-		webstartOutputDirectory		<<= (Keys.crossTarget) { _ / "webstart" },
-		webstartResources			<<= (Keys.sourceDirectory in Runtime) { _ / "webstart" },
-		webstartGenConf				:= null,
-		webstartKeyConf				:= null,
-		webstartJnlpConf			:= Seq.empty,
-		webstartExtraFiles			:= Seq.empty
+	lazy val webstartSettings	= classpathSettings ++ Seq(
+		webstartKeygen			<<= keygenTask,
+		webstartBuild			<<= buildTask,
+		webstartOutputDirectory	<<= (Keys.crossTarget) { _ / "webstart" },
+		webstartResources		<<= (Keys.sourceDirectory in Runtime) { _ / "webstart" },
+		webstartGenConf			:= null,	// TODO ugly
+		webstartKeyConf			:= null,	// TODO ugly
+		webstartJnlpConf		:= Seq.empty,
+		webstartExtraFiles		:= Seq.empty
 	)
-	
-	case class Asset(main:Boolean, fresh:Boolean, jar:File) {
-		val name:String	= jar.getName
-	}
 	
 	//------------------------------------------------------------------------------
 	//## tasks
 	
 	private def buildTask:Initialize[Task[File]] = (
 		Keys.streams,
-		webstartAssets,
+		classpathAssets,
 		webstartKeyConf,
 		webstartJnlpConf,
 		webstartResources,
@@ -90,12 +86,26 @@ object WebStartPlugin extends Plugin {
 		outputDirectory:File
 	):File	= {
 		// require(jnlpConf	!= null, webstartJnlpConf.key.label		+ " must be set")
+		// TODO copy and sign fresh jars only unless they did not exist before
+		val assetMap	=
+				for {
+					asset	<- assets
+					source	= asset.jar
+					target	= outputDirectory / asset.name
+				}
+				yield (source, target)
+				
+		streams.log info ("copying assets")
+		// TODO should care about freshness
+		val assetsToCopy	= assetMap filter { case (source,target) => source newerThan target }
+		val assetsCopied	= IO copy assetsToCopy
 		
-		val freshAssets	= assets filter { _.fresh }
-		if (keyConf != null && freshAssets.nonEmpty) {
+		// TODO should care about freshness
+		val freshJars	= assetsCopied
+		if (keyConf != null && freshJars.nonEmpty) {
 			streams.log info ("signing jars")
-			freshAssets.par foreach { asset =>
-				signAndVerify(keyConf, asset.jar, streams.log)
+			freshJars.par foreach { jar =>
+				signAndVerify(keyConf, jar, streams.log)
 			}
 		}
 		else if (keyConf == null) {
@@ -108,7 +118,9 @@ object WebStartPlugin extends Plugin {
 		// @see http://download.oracle.com/javase/tutorial/deployment/deploymentInDepth/jnlpFileSyntax.html
 		streams.log info ("creating jnlp descriptor(s)")
 		val confFiles:Seq[(JnlpConf,File)]	= jnlpConfs map { it => (it, outputDirectory / it.fileName) }
-		confFiles foreach { case (jnlpConf, jnlpFile) => writeJnlp(jnlpConf, assets, jnlpFile) }
+		confFiles foreach { case (jnlpConf, jnlpFile) => 
+			writeJnlp(jnlpConf, assets, jnlpFile) 
+		}
 		val jnlpFiles	= confFiles map { _._2 }
 		
 		// TODO check
@@ -118,18 +130,19 @@ object WebStartPlugin extends Plugin {
 				for {
 					dir		<- webstartResources.get
 					file	<- dir.***.get
-					target	= Path.rebase(dir, outputDirectory)(file).get
+					target	= Path rebase (dir, outputDirectory) apply file get
 				}
 				yield (file, target)
 		val resourcesCopied	= IO copy resourcesToCopy
 	
 		streams.log info ("copying extra files")
-		val extraCopied	= IO copy (extraFiles map { it => (it, outputDirectory / it.getName) })
+		val extrasToCopy	= extraFiles map { it => (it, outputDirectory / it.getName) }
+		val extrasCopied	= IO copy extrasToCopy
 		
 		streams.log info ("cleaning up")
 		val allFiles	= (outputDirectory * "*").get.toSet
-		val assetJars	= assets map { _.jar }
-		val obsolete	= allFiles -- assetJars -- resourcesCopied -- extraCopied -- jnlpFiles 
+		val jarFiles	= assetMap map { case (source,target) => target }
+		val obsolete	= allFiles -- jarFiles -- resourcesCopied -- extrasCopied -- jnlpFiles 
 		IO delete obsolete
 		
 		outputDirectory
@@ -181,98 +194,6 @@ object WebStartPlugin extends Plugin {
 					<application-desc main-class={jnlpConf.mainClass}/>
 				</jnlp>
 		IO write (targetFile, xml)
-	}
-	
-	//------------------------------------------------------------------------------
-	//## jar files
-	
-	private def assetsTask:Initialize[Task[Seq[Asset]]]	= (
-		// BETTER use dependencyClasspath and products instead of fullClasspath?
-		// BETTER use exportedProducts instead of products?
-		Keys.streams,
-		Keys.products in Runtime,
-		Keys.fullClasspath in Runtime,
-		Keys.cacheDirectory,
-		webstartOutputDirectory
-	) map assetsTaskImpl
-		
-	private def assetsTaskImpl(
-		streams:TaskStreams,
-		products:Seq[File],
-		fullClasspath:Classpath,
-		cacheDirectory:File,
-		outputDirectory:File
-	):Seq[Asset]	= {
-		// NOTE for directories, the package should be named after the artifact they come from
-		val (archives, directories)	= fullClasspath.files.distinct partition ClasspathUtilities.isArchive
-		
-		streams.log info ("creating directory jars")
-		val directoryAssets	= directories.zipWithIndex map { case (source, index) =>
-			val main	= products contains source
-			val cache	= cacheDirectory / webstartAssets.key.label / index.toString
-			val target	= outputDirectory / (index + ".jar")
-			val fresh	= jarDirectory(source, cache, target)
-			Asset(main, fresh, target)
-		}
-		
-		streams.log info ("copying library jars")
-		val archiveAssets	= archives map { source =>
-			val main	= products contains source
-			val	target	= outputDirectory / source.getName 
-			val fresh	= copyArchive(source, target)
-			Asset(main, fresh, target)
-		}
-		
-		val assets	= archiveAssets ++ directoryAssets
-		val (freshAssets,unchangedAssets)	= assets partition { _.fresh }
-		streams.log info (freshAssets.size + " fresh jars, " + unchangedAssets.size + " unchanged jars")
-		
-		assets
-	}
-	
-	private def copyArchive(sourceFile:File, targetFile:File):Boolean	= {
-		val fresh	= !targetFile.exists || sourceFile.lastModified > targetFile.lastModified
-		if (fresh) {
-			IO copyFile (sourceFile, targetFile)
-		}
-		fresh
-	}
-	
-	private def jarDirectory(sourceDir:File, cacheDir:File, targetFile:File):Boolean	= {
-		import Predef.{conforms => _, _}
-		import collection.JavaConversions._
-		import Types.:+:
-		
-		import sbinary.{DefaultProtocol,Format}
-		import DefaultProtocol.{FileFormat, immutableMapFormat, StringFormat, UnitFormat}
-		import Cache.{defaultEquiv, hConsCache, hNilCache, streamFormat, wrapIn}
-		import Tracked.{inputChanged, outputChanged}
-		import FileInfo.exists
-		import FilesInfo.lastModified
-		
-		implicit def stringMapEquiv: Equiv[Map[File, String]] = defaultEquiv
-		
-		val sources		= (sourceDir ** -DirectoryFilter get) x (Path relativeTo sourceDir)
-		
-		def makeJar(sources:Seq[(File, String)], jar:File) {
-			IO delete jar
-			IO zip (sources, jar)
-		}
-		
-		val cachedMakeJar = inputChanged(cacheDir / "inputs") { (inChanged, inputs:(Map[File, String] :+: FilesInfo[ModifiedFileInfo] :+: HNil)) =>
-			val sources :+: _ :+: HNil = inputs
-			outputChanged(cacheDir / "output") { (outChanged, jar:PlainFileInfo) =>
-				val fresh	= inChanged || outChanged
-				if (fresh) {
-					makeJar(sources.toSeq, jar.file)
-				}
-				fresh
-			}
-		}
-		val sourcesMap		= sources.toMap
-		val inputs			= sourcesMap :+: lastModified(sourcesMap.keySet.toSet) :+: HNil
-		val fresh:Boolean	= cachedMakeJar(inputs)(() => exists(targetFile))
-		fresh
 	}
 	
 	//------------------------------------------------------------------------------

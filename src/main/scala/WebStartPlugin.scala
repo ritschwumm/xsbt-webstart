@@ -11,6 +11,11 @@ object WebStartPlugin extends Plugin {
 	//------------------------------------------------------------------------------
 	//## configuration objects
 	
+    case class ExtensionConf(
+        name:String,
+        href:String
+    )
+			
 	case class GenConf(
 		dname:String,
 		validity:Int
@@ -36,9 +41,10 @@ object WebStartPlugin extends Plugin {
 		// NOTE if this is true, signing is mandatory
 		allPermissions:Boolean,
 		j2seVersion:String,
-		maxHeapSize:Int
+		maxHeapSize:Int,
+        extensions:Seq[ExtensionConf]=Seq.empty
 	)
-			
+
 	//------------------------------------------------------------------------------
 	//## exported
 	
@@ -190,6 +196,7 @@ object WebStartPlugin extends Plugin {
 					<resources>
 						<j2se version={jnlpConf.j2seVersion}  max-heap-size={jnlpConf.maxHeapSize + "m"}/>
 						{ assets map { it => <jar href={it.name} main={it.main.toString} /> } }
+                        { jnlpConf.extensions map {it => <extension name={it.name} href={it.href} /> } }
 					</resources>
 					<application-desc main-class={jnlpConf.mainClass}/>
 				</jnlp>

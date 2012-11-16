@@ -1,11 +1,13 @@
 import sbt._
 
+import scala.xml.Elem
+
 import Keys.Classpath
 import Keys.TaskStreams
 import Project.Initialize
 import classpath.ClasspathUtilities
 
-import ClasspathPlugin._
+import ClasspathPlugin.{ classpathSettings, classpathAssets, Asset => ClasspathAsset }
 
 object WebStartPlugin extends Plugin {
 	//------------------------------------------------------------------------------
@@ -24,6 +26,19 @@ object WebStartPlugin extends Plugin {
 	)
 	
 	case class JnlpConf(
+		fileName:String, 
+		descriptor:(String,Seq[JnlpAsset])=>Elem
+	)
+	
+	case class JnlpAsset(href:String, main:Boolean, size:Long) {
+		def toElem:Elem	= <jar href={href} main={main.toString} size={size.toString}/> 
+	}
+	
+	private def mkAsset(cp:ClasspathAsset):JnlpAsset	= 
+			JnlpAsset(cp.name, cp.main, cp.jar.length)
+	
+	/*
+	case class JnlpConf(
 		mainClass:String,
 		fileName:String,
 		codeBase:String,
@@ -36,9 +51,28 @@ object WebStartPlugin extends Plugin {
 		// NOTE if this is true, signing is mandatory
 		allPermissions:Boolean,
 		j2seVersion:String,
-		maxHeapSize:Int
+		maxHeapSize:Int,
+		extensions:Seq[ExtensionConf]		= Seq.empty,
+		architectures:Seq[ArchitectureConf]	= Seq.empty
 	)
-			
+	
+	case class ExtensionConf(
+		name:String,
+		href:String,
+		version:Option[String]
+	)
+	
+	case class ArchitectureConf(
+		os:String,
+		arch:String,
+		items:Seq[SpecificConf]
+	)
+	
+	sealed trait SpecificConf
+	case class PropertyConf(name:String, value:String)	extends SpecificConf
+	case class NativeLibConf(href:String)				extends SpecificConf
+	*/
+	
 	//------------------------------------------------------------------------------
 	//## exported
 	
@@ -78,7 +112,7 @@ object WebStartPlugin extends Plugin {
 	
 	private def buildTaskImpl(
 		streams:TaskStreams,	
-		assets:Seq[Asset],
+		assets:Seq[ClasspathAsset],
 		keyConf:KeyConf,
 		jnlpConfs:Seq[JnlpConf],
 		webstartResources:PathFinder,
@@ -117,9 +151,13 @@ object WebStartPlugin extends Plugin {
 		
 		// @see http://download.oracle.com/javase/tutorial/deployment/deploymentInDepth/jnlpFileSyntax.html
 		streams.log info ("creating jnlp descriptor(s)")
+		// main jar must come first
+		val sortedAssets	= assets sortBy { !_.main } 
 		val confFiles:Seq[(JnlpConf,File)]	= jnlpConfs map { it => (it, outputDirectory / it.fileName) }
-		confFiles foreach { case (jnlpConf, jnlpFile) => 
-			writeJnlp(jnlpConf, assets, jnlpFile) 
+		confFiles foreach { case (jnlpConf, jnlpFile) =>
+			val xml:Elem	= jnlpConf descriptor (jnlpConf.fileName, sortedAssets map mkAsset)
+			val str:String	= """<?xml version="1.0" encoding="utf-8"?>""" + "\n" + xml
+			IO write (jnlpFile, str)
 		}
 		val jnlpFiles	= confFiles map { _._2 }
 		
@@ -172,29 +210,42 @@ object WebStartPlugin extends Plugin {
 		if (rc2 != 0)	sys error ("verify failed: " + rc2)
 	}
 	
+	/*
+	// main Assets come first in the Seq
 	private def writeJnlp(jnlpConf:JnlpConf, assets:Seq[Asset], targetFile:File) {
+		import jnlpConf._
 		val xml	= 
 				"""<?xml version="1.0" encoding="utf-8"?>""" + "\n" +
-				<jnlp spec="1.5+" codebase={jnlpConf.codeBase} href={jnlpConf.fileName}>
+				<jnlp spec="1.5+" codebase={codeBase} href={fileName}>
 					<information>
-						<title>{jnlpConf.title}</title>
-						<vendor>{jnlpConf.vendor}</vendor>
-						<description>{jnlpConf.description}</description>
-						{ jnlpConf.iconName.toSeq map { it => <icon href={it}/> } }
-						{ jnlpConf.splashName.toSeq map { it => <icon href={it} kind="splash"/> } }
-						{ if (jnlpConf.offlineAllowed) Seq(<offline-allowed/>) else Seq.empty }
+						<title>{title}</title>
+						<vendor>{vendor}</vendor>
+						<description>{description}</description>
+						{ iconName.toSeq	map { it => <icon href={it}/> } }
+						{ splashName.toSeq	map { it => <icon href={it} kind="splash"/> } }
+						{ if (offlineAllowed) Seq(<offline-allowed/>) else Seq.empty }
 					</information>
 					<security>
-						{ if (jnlpConf.allPermissions) Seq(<all-permissions/>) else Seq.empty }
+						{ if (allPermissions) Seq(<all-permissions/>) else Seq.empty }
 					</security> 
 					<resources>
-						<j2se version={jnlpConf.j2seVersion}  max-heap-size={jnlpConf.maxHeapSize + "m"}/>
-						{ assets map { it => <jar href={it.name} main={it.main.toString} /> } }
+						<j2se version={j2seVersion}  max-heap-size={maxHeapSize + "m"}/>
+						{ assets		map { it => <jar href={it.name} main={it.main.toString}/> } }
+						{ extensions	map { it => <extension name={it.name} href={it.href} version={it.version getOrElse null}/> } }
 					</resources>
-					<application-desc main-class={jnlpConf.mainClass}/>
+					{	architectures map { it =>
+							<resources os={it.os} arch={it.arch}>
+								{	it.items map {
+										case PropertyConf(name, value)	=> <property name={name} value={value}/>
+										case NativeLibConf(href)		=> <nativelib href={href}/>
+								}	}
+							</resources>
+					}	}
+					<application-desc main-class={mainClass}/>
 				</jnlp>
 		IO write (targetFile, xml)
 	}
+	*/
 	
 	//------------------------------------------------------------------------------
 	

@@ -15,7 +15,7 @@ Build and publish the plugin:
     sbt publish-local
     
 Add the plugin to your project in project/plugins/build.sbt:
-    addSbtPlugin("de.djini" % "xsbt-webstart" % "0.0.5")
+    addSbtPlugin("de.djini" % "xsbt-webstart" % "0.0.8")
     
 Include the plugin in you project's build.sbt:
 
@@ -34,16 +34,26 @@ Include the plugin in you project's build.sbt:
     )
     
     webstartJnlpConf    := Seq(JnlpConf(
-        mainClass		= "my.Main",
-        fileName        = "my.jnlp",
-        codeBase        = "http://my.test/webstart/",
-        title           = "My Title",
-        vendor          = "My Company",
-        description     = "My Webstart Project",
-        offlineAllowed  = true,
-        allPermissions  = true,
-        j2seVersion     = "1.6+",
-        maxHeapSize     = 192
+    	fileName	= "my.jnlp",
+		descriptor	= (fileName:String, assets:Seq[JnlpAsset]) => {
+			<jnlp spec="1.5+" codebase="$$codebase" href={fileName}>
+				<information>
+					<title>My Title</title>
+					<vendor>My Company</vendor>
+					<description>My Webstart Project</description>
+					<icon href="my_icon.png"/>
+					<icon href="my_splash.png" kind="splash"/>
+				</information>
+				<security>
+					<all-permissions/>
+				</security> 
+				<resources>
+					<j2se version="1.6+" max-heap-size="192m"/>
+					{ assets map { _.toElem } }
+				</resources>
+				<application-desc main-class="my.Main"/>
+			</jnlp>
+		}
     ))
 
 Once set up you can use the following tasks in sbt:

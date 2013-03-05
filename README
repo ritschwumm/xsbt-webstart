@@ -14,26 +14,26 @@ Build and publish the plugin:
     cd xsbt-webstart
     sbt publish-local
     
-Add the plugin to your project in project/plugins/build.sbt:
-    addSbtPlugin("de.djini" % "xsbt-webstart" % "0.0.8")
+Add the plugin to your project in project/plugins.sbt:
+    addSbtPlugin("de.djini" % "xsbt-webstart" % "0.9.0")
     
 Include the plugin in you project's build.sbt:
 
 	webstartSettings
     
-    webstartGenConf := GenConf(
+    webstartGenConfig := GenConfig(
         dname       = "CN=Snake Oil, OU=An Anonymous Hacker, O=Bad Guys Inc., L=Bielefeld, ST=33641, C=DE",
         validity    = 365
     )
 
-    webstartKeyConf := KeyConf(
+    webstartKeyConfig := KeyConfig(
         keyStore    = file("my/keyStore"),
         storePass   = "password",
         alias       = "alias",
         keyPass     = "password"
     )
     
-    webstartJnlpConf    := Seq(JnlpConf(
+    webstartJnlpConfigs    := Seq(JnlpConfigs(
     	fileName	= "my.jnlp",
 		descriptor	= (fileName:String, assets:Seq[JnlpAsset]) => {
 			<jnlp spec="1.5+" codebase="$$codebase" href={fileName}>

@@ -7,7 +7,7 @@ import Keys.TaskStreams
 import Project.Initialize
 import classpath.ClasspathUtilities
 
-import ClasspathPlugin.{ classpathSettings, classpathAssets, Asset => ClasspathAsset }
+import ClasspathPlugin._
 
 object WebStartPlugin extends Plugin {
 	//------------------------------------------------------------------------------

@@ -4,22 +4,22 @@ At the moment, this is only a rough draft, just enough to get my own
 projects running. Let me know what you think.
 
 To build this code, get and install SBT from 
-    https://github.com/harrah/xsbt
+    https://github.com/sbt/sbt
 
 Get and install this plugin before building:
-	https://github.com/ritschwumm/xsbt-classpath
-	
+    https://github.com/ritschwumm/xsbt-classpath
+    
 Build and publish the plugin:
     git clone git@github.com:ritschwumm/xsbt-webstart.git
     cd xsbt-webstart
     sbt publish-local
     
 Add the plugin to your project in project/plugins.sbt:
-    addSbtPlugin("de.djini" % "xsbt-webstart" % "0.9.0")
+    addSbtPlugin("de.djini" % "xsbt-webstart" % "0.10.0")
     
 Include the plugin in you project's build.sbt:
 
-	webstartSettings
+    webstartSettings
     
     webstartGenConfig := GenConfig(
         dname       = "CN=Snake Oil, OU=An Anonymous Hacker, O=Bad Guys Inc., L=Bielefeld, ST=33641, C=DE",
@@ -34,26 +34,26 @@ Include the plugin in you project's build.sbt:
     )
     
     webstartJnlpConfigs    := Seq(JnlpConfigs(
-    	fileName	= "my.jnlp",
-		descriptor	= (fileName:String, assets:Seq[JnlpAsset]) => {
-			<jnlp spec="1.5+" codebase="$$codebase" href={fileName}>
-				<information>
-					<title>My Title</title>
-					<vendor>My Company</vendor>
-					<description>My Webstart Project</description>
-					<icon href="my_icon.png"/>
-					<icon href="my_splash.png" kind="splash"/>
-				</information>
-				<security>
-					<all-permissions/>
-				</security> 
-				<resources>
-					<j2se version="1.6+" max-heap-size="192m"/>
-					{ assets map { _.toElem } }
-				</resources>
-				<application-desc main-class="my.Main"/>
-			</jnlp>
-		}
+        fileName    = "my.jnlp",
+        descriptor  = (fileName:String, assets:Seq[JnlpAsset]) => {
+            <jnlp spec="1.5+" codebase="$$codebase" href={fileName}>
+                <information>
+                    <title>My Title</title>
+                    <vendor>My Company</vendor>
+                    <description>My Webstart Project</description>
+                    <icon href="my_icon.png"/>
+                    <icon href="my_splash.png" kind="splash"/>
+                </information>
+                <security>
+                    <all-permissions/>
+                </security> 
+                <resources>
+                    <j2se version="1.6+" max-heap-size="192m"/>
+                    { assets map { _.toElem } }
+                </resources>
+                <application-desc main-class="my.Main"/>
+            </jnlp>
+        }
     ))
 
 Once set up you can use the following tasks in sbt:

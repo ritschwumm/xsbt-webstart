@@ -43,23 +43,25 @@ object WebStartPlugin extends Plugin {
 	val webstartGenConfig		= SettingKey[GenConfig]("webstart-gen-configs")
 	val webstartKeyConfig		= SettingKey[KeyConfig]("webstart-key-configs")                   
 	val webstartJnlpConfigs		= SettingKey[Seq[JnlpConfig]]("webstart-jnlp-configs")
-	val webstartExtras			= TaskKey[Seq[(File,String)]]("webstart-extras")
+	val webstartExtras			= TaskKey[Traversable[(File,String)]]("webstart-extras")
 		
 	// webstartJnlp		<<= (Keys.name) { it => it + ".jnlp" },
-	lazy val webstartSettings	= classpathSettings ++ Seq(
-		webstartKeygen			<<= keygenTask,
-		webstartBuild			<<= buildTask,
-		webstartOutput			<<= (Keys.crossTarget) { _ / "webstart" },
-		webstartGenConfig		:= null,	// TODO ugly
-		webstartKeyConfig		:= null,	// TODO ugly
-		webstartJnlpConfigs		:= Seq.empty,
-		webstartExtras			:= Seq.empty
-	)
+	lazy val webstartSettings:Seq[Def.Setting[_]]	=
+			classpathSettings ++ 
+			Seq(
+				webstartKeygen			<<= keygenTask,
+				webstartBuild			<<= buildTask,
+				webstartOutput			<<= (Keys.crossTarget) { _ / "webstart" },
+				webstartGenConfig		:= null,	// TODO ugly
+				webstartKeyConfig		:= null,	// TODO ugly
+				webstartJnlpConfigs		:= Seq.empty,
+				webstartExtras			:= Seq.empty
+			)
 	
 	//------------------------------------------------------------------------------
 	//## tasks
 	
-	private def buildTask:Initialize[Task[File]] = (
+	private def buildTask:Def.Initialize[Task[File]] = (
 		Keys.streams,
 		classpathAssets,
 		webstartKeyConfig,
@@ -73,7 +75,7 @@ object WebStartPlugin extends Plugin {
 		assets:Seq[ClasspathAsset],
 		keyConfig:KeyConfig,
 		jnlpConfigs:Seq[JnlpConfig],
-		extras:Seq[(File,String)],
+		extras:Traversable[(File,String)],
 		output:File
 	):File	= {
 		// require(jnlpConf	!= null, webstartJnlpConf.key.label		+ " must be set")
@@ -159,7 +161,7 @@ object WebStartPlugin extends Plugin {
 	
 	//------------------------------------------------------------------------------
 	
-	private def keygenTask:Initialize[Task[Unit]] = (
+	private def keygenTask:Def.Initialize[Task[Unit]] = (
 		Keys.streams,
 		webstartGenConfig,
 		webstartKeyConfig

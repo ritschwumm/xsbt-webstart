@@ -4,10 +4,19 @@ name			:= "xsbt-webstart"
 
 organization	:= "de.djini"
 
-version			:= "0.10.0"
+version			:= "0.11.0"
 
-scalacOptions	++= Seq("-deprecation", "-unchecked")
+addSbtPlugin("de.djini" % "xsbt-classpath" % "0.5.0")
 
-libraryDependencies <+= (sbtBinaryVersion in update, scalaVersion) { (sbtV, scalaV) =>
-	Defaults.sbtPluginExtra("de.djini" % "xsbt-classpath" % "0.4.0", sbtV, scalaV) % "compile"
-}
+scalacOptions	++= Seq(
+	"-deprecation",
+	"-unchecked",
+	// "-language:implicitConversions",
+	// "-language:existentials",
+	// "-language:higherKinds",
+	// "-language:reflectiveCalls",
+	// "-language:dynamics",
+	// "-language:postfixOps",
+	// "-language:experimental.macros"
+	"-feature"
+)

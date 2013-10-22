@@ -21,17 +21,17 @@ Include the plugin in you project's build.sbt:
 
     webstartSettings
     
-    webstartGenConfig := GenConfig(
+    webstartGenConfig := Some(GenConfig(
         dname       = "CN=Snake Oil, OU=An Anonymous Hacker, O=Bad Guys Inc., L=Bielefeld, ST=33641, C=DE",
         validity    = 365
-    )
+    ))
 
-    webstartKeyConfig := KeyConfig(
+    webstartKeyConfig := Some(KeyConfig(
         keyStore    = file("my/keyStore"),
         storePass   = "password",
         alias       = "alias",
         keyPass     = "password"
-    )
+    ))
     
     webstartJnlpConfigs    := Seq(JnlpConfigs(
         fileName    = "my.jnlp",
@@ -61,7 +61,7 @@ Include the plugin in you project's build.sbt:
     Permissions: all-permissions
     or the java security settings cannot be set to "very high"
     */
-    webstartManifest	:= Some(file("path/to/MANIFEST.MF"))
+    webstartManifest    := Some(file("path/to/MANIFEST.MF"))
 
 Once set up you can use the following tasks in sbt:
 

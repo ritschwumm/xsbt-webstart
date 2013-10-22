@@ -55,6 +55,13 @@ Include the plugin in you project's build.sbt:
             </jnlp>
         }
     ))
+    
+    /*
+    on osx this file must contain the line
+    Permissions: all-permissions
+    or the java security settings cannot be set to "very high"
+    */
+    webstartManifest	:= Some(file("path/to/MANIFEST.MF"))
 
 Once set up you can use the following tasks in sbt:
 

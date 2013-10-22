@@ -40,9 +40,10 @@ object WebStartPlugin extends Plugin {
 	val webstartKeygen			= TaskKey[Unit]("webstart-keygen")
 	val webstartBuild			= TaskKey[File]("webstart")
 	val webstartOutput			= SettingKey[File]("webstart-output")
-	val webstartGenConfig		= SettingKey[GenConfig]("webstart-gen-configs")
-	val webstartKeyConfig		= SettingKey[KeyConfig]("webstart-key-configs")                   
+	val webstartGenConfig		= SettingKey[Option[GenConfig]]("webstart-gen-configs")
+	val webstartKeyConfig		= SettingKey[Option[KeyConfig]]("webstart-key-configs")                   
 	val webstartJnlpConfigs		= SettingKey[Seq[JnlpConfig]]("webstart-jnlp-configs")
+	val webstartManifest		= SettingKey[Option[File]]("webstart-manifest")
 	val webstartExtras			= TaskKey[Traversable[(File,String)]]("webstart-extras")
 		
 	// webstartJnlp		<<= (Keys.name) { it => it + ".jnlp" },
@@ -52,9 +53,10 @@ object WebStartPlugin extends Plugin {
 				webstartKeygen			<<= keygenTask,
 				webstartBuild			<<= buildTask,
 				webstartOutput			<<= (Keys.crossTarget) { _ / "webstart" },
-				webstartGenConfig		:= null,	// TODO ugly
-				webstartKeyConfig		:= null,	// TODO ugly
+				webstartGenConfig		:= None,
+				webstartKeyConfig		:= None,
 				webstartJnlpConfigs		:= Seq.empty,
+				webstartManifest		:= None,
 				webstartExtras			:= Seq.empty
 			)
 	
@@ -66,6 +68,7 @@ object WebStartPlugin extends Plugin {
 		classpathAssets,
 		webstartKeyConfig,
 		webstartJnlpConfigs,
+		webstartManifest,
 		webstartExtras,
 		webstartOutput
 	) map buildTaskImpl
@@ -73,12 +76,13 @@ object WebStartPlugin extends Plugin {
 	private def buildTaskImpl(
 		streams:TaskStreams,	
 		assets:Seq[ClasspathAsset],
-		keyConfig:KeyConfig,
+		keyConfig:Option[KeyConfig],
 		jnlpConfigs:Seq[JnlpConfig],
+		manifest:Option[File],
 		extras:Traversable[(File,String)],
 		output:File
 	):File	= {
-		// require(jnlpConf	!= null, webstartJnlpConf.key.label		+ " must be set")
+		// require(jnlpConf	!= null, s"${webstartJnlpConf.key.label} must be set")
 		// BETTER copy and sign fresh jars only unless they did not exist before
 		val assetMap	=
 				for {
@@ -95,14 +99,26 @@ object WebStartPlugin extends Plugin {
 		
 		// BETTER care about freshness
 		val freshJars	= assetsCopied
-		if (keyConfig != null && freshJars.nonEmpty) {
-			streams.log info "signing jars"
-			freshJars.par foreach { jar =>
-				signAndVerify(keyConfig, jar, streams.log)
+		if (freshJars.nonEmpty) {
+			if (manifest.isEmpty) {
+				streams.log info "missing manifest, leaving jar manifests unchanged"
 			}
-		}
-		else if (keyConfig == null) {
-			streams.log info "missing KeyConfig, leaving jar files unsigned"
+			manifest foreach { manifest =>
+				streams.log info "extending jar manifests"
+				freshJars.par foreach { jar =>
+					extendManifest(manifest, jar, streams.log)
+				}
+			}
+			
+			if (keyConfig.isEmpty) {
+				streams.log info "missing KeyConfig, leaving jar files unsigned"
+			}
+			keyConfig foreach { keyConfig =>
+				streams.log info "signing jars"
+				freshJars.par foreach { jar =>
+					signAndVerify(keyConfig, jar, streams.log)
+				}
+			}
 		}
 		else {
 			streams.log info "no fresh jars to sign"
@@ -135,6 +151,15 @@ object WebStartPlugin extends Plugin {
 		output
 	}
 	
+	private def extendManifest(manifest:File, jar:File, log:Logger) {
+		val rc	= Process("jar", List(
+			"umf",
+			manifest.getAbsolutePath,
+			jar.getAbsolutePath
+		)) ! log
+		if (rc != 0)	sys error s"manifest change failed: ${rc}"
+	}
+	
 	private def signAndVerify(keyConfig:KeyConfig, jar:File, log:Logger) {
 		// sigfile, storetype, provider, providerName
 		val rc1	= Process("jarsigner", List(
@@ -147,7 +172,7 @@ object WebStartPlugin extends Plugin {
 			jar.getAbsolutePath,
 			keyConfig.alias
 		)) ! log
-		if (rc1 != 0)	sys error ("sign failed: " + rc1)
+		if (rc1 != 0)	sys error s"sign failed: ${rc1}"
 	
 		val rc2	= Process("jarsigner", List(
 			"-verify",
@@ -156,7 +181,7 @@ object WebStartPlugin extends Plugin {
 			"-keypass",		keyConfig.keyPass,
 			jar.getAbsolutePath
 		)) ! log
-		if (rc2 != 0)	sys error ("verify failed: " + rc2)
+		if (rc2 != 0)	sys error s"verify failed: ${rc2}"
 	}
 	
 	//------------------------------------------------------------------------------
@@ -169,13 +194,18 @@ object WebStartPlugin extends Plugin {
 			
 	private def keygenTaskImpl(
 		streams:TaskStreams,
-		genConfig:GenConfig,
-		keyConfig:KeyConfig
+		genConfig:Option[GenConfig],
+		keyConfig:Option[KeyConfig]
 	) {
-		streams.log info ("creating webstart key in " + keyConfig.keyStore)
-		require(genConfig	!= null, webstartGenConfig.key.label	+ " must be set")
-		require(keyConfig	!= null, webstartKeyConfig.key.label	+ " must be set")
-		genkey(keyConfig, genConfig, streams.log)
+		require(genConfig.nonEmpty, s"${webstartGenConfig.key.label} must be set")
+		require(keyConfig.nonEmpty, s"${webstartKeyConfig.key.label} must be set")
+		for {
+			genConfig	<- genConfig
+			keyConfig	<- keyConfig
+		} {
+			streams.log info s"creating webstart key in ${keyConfig.keyStore}"
+			genkey(keyConfig, genConfig, streams.log)
+		}
 	}
 	
 	private def genkey(keyConfig:KeyConfig, genConfig:GenConfig, log:Logger) {
@@ -188,6 +218,6 @@ object WebStartPlugin extends Plugin {
 			"-keypass",		keyConfig.keyPass,
 			"-alias",		keyConfig.alias
 		)) ! log
-		if (rc != 0)	sys error ("key gen failed: " + rc)
+		if (rc != 0)	sys error s"key gen failed: ${rc}"
 	}
 }

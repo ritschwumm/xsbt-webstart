@@ -4,7 +4,7 @@ name			:= "xsbt-webstart"
 
 organization	:= "de.djini"
 
-version			:= "0.11.0"
+version			:= "0.12.0"
 
 addSbtPlugin("de.djini" % "xsbt-classpath" % "0.5.0")
 

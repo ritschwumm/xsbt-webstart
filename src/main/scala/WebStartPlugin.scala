@@ -2,8 +2,7 @@ import sbt._
 
 import scala.xml.Elem
 
-import Keys.Classpath
-import Keys.TaskStreams
+import Keys.{ Classpath, TaskStreams, watchSources }
 import Project.Initialize
 import classpath.ClasspathUtilities
 
@@ -57,7 +56,12 @@ object WebStartPlugin extends Plugin {
 				webstartKeyConfig		:= None,
 				webstartJnlpConfigs		:= Seq.empty,
 				webstartManifest		:= None,
-				webstartExtras			:= Seq.empty
+				webstartExtras			:= Seq.empty,
+				watchSources			<<= (watchSources, webstartManifest) map { 
+					(watchSources, webstartManifest) => {
+						watchSources ++ webstartManifest.toSeq
+					}
+				}
 			)
 	
 	//------------------------------------------------------------------------------

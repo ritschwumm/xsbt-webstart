@@ -15,7 +15,7 @@ Build and publish the plugin:
     sbt publish-local
     
 Add the plugin to your project in project/plugins.sbt:
-    addSbtPlugin("de.djini" % "xsbt-webstart" % "0.12.0")
+    addSbtPlugin("de.djini" % "xsbt-webstart" % "0.13.0")
     
 Include the plugin in you project's build.sbt:
 

@@ -4,7 +4,6 @@ import scala.xml.Elem
 
 import Keys.{ Classpath, TaskStreams }
 import Project.Initialize
-import classpath.ClasspathUtilities
 
 import ClasspathPlugin._
 
@@ -49,33 +48,33 @@ object WebStartPlugin extends Plugin {
 	lazy val webstartSettings:Seq[Def.Setting[_]]	=
 			classpathSettings ++ 
 			Vector(
-				webstartKeygen			<<= keygenTask,
-				webstartBuild			<<= buildTask,
-				webstartOutput			<<= Keys.crossTarget { _ / "webstart" },
-				webstartGenConfig		:= None,
-				webstartKeyConfig		:= None,
-				webstartJnlpConfigs		:= Seq.empty,
-				webstartManifest		:= None,
-				webstartExtras			:= Seq.empty,
-				Keys.watchSources		<<= (Keys.watchSources, webstartManifest) map { 
-					(watchSources, webstartManifest) => {
-						watchSources ++ webstartManifest.toSeq
-					}
-				}
+				webstartKeygen	:=
+						keygenTaskImpl(
+							streams		= Keys.streams.value,
+							genConfig	= webstartGenConfig.value,
+							keyConfig	= webstartKeyConfig.value
+						),
+				webstartBuild	:=
+						buildTaskImpl(
+							streams		= Keys.streams.value,
+							assets		= classpathAssets.value,
+							keyConfig	= webstartKeyConfig.value,
+							jnlpConfigs	= webstartJnlpConfigs.value,
+							manifest	= webstartManifest.value,
+							extras		= webstartExtras.value,
+							output		= webstartOutput.value
+						),
+				webstartOutput		:= Keys.crossTarget.value / "webstart",
+				webstartGenConfig	:= None,
+				webstartKeyConfig	:= None,
+				webstartJnlpConfigs	:= Seq.empty,
+				webstartManifest	:= None,
+				webstartExtras		:= Seq.empty,
+				Keys.watchSources	:= Keys.watchSources.value ++ webstartManifest.value.toVector
 			)
 	
 	//------------------------------------------------------------------------------
 	//## tasks
-	
-	private def buildTask:Def.Initialize[Task[File]] = (
-		Keys.streams,
-		classpathAssets,
-		webstartKeyConfig,
-		webstartJnlpConfigs,
-		webstartManifest,
-		webstartExtras,
-		webstartOutput
-	) map buildTaskImpl
 	
 	private def buildTaskImpl(
 		streams:TaskStreams,	
@@ -194,12 +193,6 @@ object WebStartPlugin extends Plugin {
 	
 	//------------------------------------------------------------------------------
 	
-	private def keygenTask:Def.Initialize[Task[Unit]] = (
-		Keys.streams,
-		webstartGenConfig,
-		webstartKeyConfig
-	) map keygenTaskImpl
-			
 	private def keygenTaskImpl(
 		streams:TaskStreams,
 		genConfig:Option[GenConfig],

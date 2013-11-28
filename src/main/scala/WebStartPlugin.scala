@@ -2,7 +2,7 @@ import sbt._
 
 import scala.xml.Elem
 
-import Keys.{ Classpath, TaskStreams, watchSources }
+import Keys.{ Classpath, TaskStreams }
 import Project.Initialize
 import classpath.ClasspathUtilities
 
@@ -48,16 +48,16 @@ object WebStartPlugin extends Plugin {
 	// webstartJnlp		<<= (Keys.name) { it => it + ".jnlp" },
 	lazy val webstartSettings:Seq[Def.Setting[_]]	=
 			classpathSettings ++ 
-			Seq(
+			Vector(
 				webstartKeygen			<<= keygenTask,
 				webstartBuild			<<= buildTask,
-				webstartOutput			<<= (Keys.crossTarget) { _ / "webstart" },
+				webstartOutput			<<= Keys.crossTarget { _ / "webstart" },
 				webstartGenConfig		:= None,
 				webstartKeyConfig		:= None,
 				webstartJnlpConfigs		:= Seq.empty,
 				webstartManifest		:= None,
 				webstartExtras			:= Seq.empty,
-				watchSources			<<= (watchSources, webstartManifest) map { 
+				Keys.watchSources		<<= (Keys.watchSources, webstartManifest) map { 
 					(watchSources, webstartManifest) => {
 						watchSources ++ webstartManifest.toSeq
 					}
@@ -131,9 +131,10 @@ object WebStartPlugin extends Plugin {
 		// @see http://download.oracle.com/javase/tutorial/deployment/deploymentInDepth/jnlpFileSyntax.html
 		streams.log info "creating jnlp descriptor(s)"
 		// main jar must come first
-		val sortedAssets	= assets sortBy { !_.main } map { cp:ClasspathAsset =>
-			JnlpAsset(cp.name, cp.main, cp.jar.length)
-		}
+		val sortedAssets	=
+				assets sortBy { !_.main } map { cp:ClasspathAsset =>
+					JnlpAsset(cp.name, cp.main, cp.jar.length)
+				}
 		val configFiles:Seq[(JnlpConfig,File)]	= jnlpConfigs map { it => (it, output / it.fileName) }
 		configFiles foreach { case (jnlpConfig, jnlpFile) =>
 			val xml:Elem	= jnlpConfig descriptor (jnlpConfig.fileName, sortedAssets)
@@ -156,35 +157,38 @@ object WebStartPlugin extends Plugin {
 	}
 	
 	private def extendManifest(manifest:File, jar:File, log:Logger) {
-		val rc	= Process("jar", List(
-			"umf",
-			manifest.getAbsolutePath,
-			jar.getAbsolutePath
-		)) ! log
+		val rc	=
+				Process("jar", List(
+					"umf",
+					manifest.getAbsolutePath,
+					jar.getAbsolutePath
+				)) ! log
 		if (rc != 0)	sys error s"manifest change failed: ${rc}"
 	}
 	
 	private def signAndVerify(keyConfig:KeyConfig, jar:File, log:Logger) {
 		// sigfile, storetype, provider, providerName
-		val rc1	= Process("jarsigner", List(
-			// "-verbose",
-			"-keystore",	keyConfig.keyStore.getAbsolutePath,
-			"-storepass",	keyConfig.storePass,
-			"-keypass",		keyConfig.keyPass,
-			// TODO makes the vm crash???
-			// "-signedjar",	jar.getAbsolutePath,
-			jar.getAbsolutePath,
-			keyConfig.alias
-		)) ! log
+		val rc1	=
+				Process("jarsigner", List(
+					// "-verbose",
+					"-keystore",	keyConfig.keyStore.getAbsolutePath,
+					"-storepass",	keyConfig.storePass,
+					"-keypass",		keyConfig.keyPass,
+					// TODO makes the vm crash???
+					// "-signedjar",	jar.getAbsolutePath,
+					jar.getAbsolutePath,
+					keyConfig.alias
+				)) ! log
 		if (rc1 != 0)	sys error s"sign failed: ${rc1}"
 	
-		val rc2	= Process("jarsigner", List(
-			"-verify",
-			"-keystore",	keyConfig.keyStore.getAbsolutePath,
-			"-storepass",	keyConfig.storePass,
-			"-keypass",		keyConfig.keyPass,
-			jar.getAbsolutePath
-		)) ! log
+		val rc2	= 
+				Process("jarsigner", List(
+					"-verify",
+					"-keystore",	keyConfig.keyStore.getAbsolutePath,
+					"-storepass",	keyConfig.storePass,
+					"-keypass",		keyConfig.keyPass,
+					jar.getAbsolutePath
+				)) ! log
 		if (rc2 != 0)	sys error s"verify failed: ${rc2}"
 	}
 	
@@ -213,15 +217,16 @@ object WebStartPlugin extends Plugin {
 	}
 	
 	private def genkey(keyConfig:KeyConfig, genConfig:GenConfig, log:Logger) {
-		val rc	= Process("keytool", List(
-			"-genkey", 
-			"-dname",		genConfig.dname, 
-			"-validity",	genConfig.validity.toString, 
-			"-keystore",	keyConfig.keyStore.getAbsolutePath,
-			"-storePass",	keyConfig.storePass, 
-			"-keypass",		keyConfig.keyPass,
-			"-alias",		keyConfig.alias
-		)) ! log
+		val rc	= 
+				Process("keytool", List(
+					"-genkey", 
+					"-dname",		genConfig.dname, 
+					"-validity",	genConfig.validity.toString, 
+					"-keystore",	keyConfig.keyStore.getAbsolutePath,
+					"-storePass",	keyConfig.storePass, 
+					"-keypass",		keyConfig.keyPass,
+					"-alias",		keyConfig.alias
+				)) ! log
 		if (rc != 0)	sys error s"key gen failed: ${rc}"
 	}
 }

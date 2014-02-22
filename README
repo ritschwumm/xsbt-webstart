@@ -33,7 +33,7 @@ Include the plugin in you project's build.sbt:
         keyPass     = "password"
     ))
     
-    webstartJnlpConfigs    := Seq(JnlpConfigs(
+    webstartJnlpConfigs    := Seq(JnlpConfig(
         fileName    = "my.jnlp",
         descriptor  = (fileName:String, assets:Seq[JnlpAsset]) => {
             <jnlp spec="1.5+" codebase="$$codebase" href={fileName}>

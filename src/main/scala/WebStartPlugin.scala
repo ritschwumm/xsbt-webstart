@@ -35,15 +35,15 @@ object WebStartPlugin extends Plugin {
 	//------------------------------------------------------------------------------
 	//## exported
 	
-	val webstartKeygen			= TaskKey[Unit]("webstart-keygen")
-	val webstartBuild			= TaskKey[File]("webstart")
-	val webstartOutput			= SettingKey[File]("webstart-output")
-	val webstartGenConfig		= SettingKey[Option[GenConfig]]("webstart-gen-configs")
-	val webstartKeyConfig		= SettingKey[Option[KeyConfig]]("webstart-key-configs")                   
-	val webstartJnlpConfigs		= SettingKey[Seq[JnlpConfig]]("webstart-jnlp-configs")
-	val webstartManifest		= SettingKey[Option[File]]("webstart-manifest")
-	val webstartExtras			= TaskKey[Traversable[(File,String)]]("webstart-extras")
-		
+	val webstartKeygen			= taskKey[Unit]("generate a signing key")
+	val webstart				= taskKey[File]("complete build, returns the output directory")
+	val webstartOutput			= settingKey[File]("where to put the output files")
+	val webstartGenConfig		= settingKey[Option[GenConfig]]("configurations for signing key generation")
+	val webstartKeyConfig		= settingKey[Option[KeyConfig]]("configuration for signing keys")
+	val webstartJnlpConfigs		= settingKey[Seq[JnlpConfig]]("configurations for jnlp files to create")
+	val webstartManifest		= settingKey[Option[File]]("manifest file to be included in jar files")
+	val webstartExtras			= taskKey[Traversable[(File,String)]]("extra files to include in the build")
+	
 	// webstartJnlp		<<= (Keys.name) { it => it + ".jnlp" },
 	lazy val webstartSettings:Seq[Def.Setting[_]]	=
 			classpathSettings ++ 
@@ -54,7 +54,7 @@ object WebStartPlugin extends Plugin {
 							genConfig	= webstartGenConfig.value,
 							keyConfig	= webstartKeyConfig.value
 						),
-				webstartBuild	:=
+				webstart		:=
 						buildTaskImpl(
 							streams		= Keys.streams.value,
 							assets		= classpathAssets.value,
@@ -85,7 +85,6 @@ object WebStartPlugin extends Plugin {
 		extras:Traversable[(File,String)],
 		output:File
 	):File	= {
-		// require(jnlpConf	!= null, s"${webstartJnlpConf.key.label} must be set")
 		// BETTER copy and sign fresh jars only unless they did not exist before
 		val assetMap	=
 				for {

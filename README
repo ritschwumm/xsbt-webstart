@@ -15,7 +15,7 @@ Build and publish the plugin:
     sbt publish-local
     
 Add the plugin to your project in project/plugins.sbt:
-    addSbtPlugin("de.djini" % "xsbt-webstart" % "0.15.0")
+    addSbtPlugin("de.djini" % "xsbt-webstart" % "0.16.0")
     
 Include the plugin in you project's build.sbt:
 
@@ -33,7 +33,7 @@ Include the plugin in you project's build.sbt:
         keyPass     = "password"
     ))
     
-    webstartJnlpConfigs    := Seq(JnlpConfigs(
+    webstartJnlpConfigs    := Seq(JnlpConfig(
         fileName    = "my.jnlp",
         descriptor  = (fileName:String, assets:Seq[JnlpAsset]) => {
             <jnlp spec="1.5+" codebase="$$codebase" href={fileName}>

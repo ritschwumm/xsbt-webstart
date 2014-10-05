@@ -6,6 +6,7 @@ import Keys.{ Classpath, TaskStreams }
 import Project.Initialize
 
 import ClasspathPlugin._
+import xsbtUtil._
 
 object WebStartPlugin extends Plugin {
 	//------------------------------------------------------------------------------
@@ -35,68 +36,61 @@ object WebStartPlugin extends Plugin {
 	//------------------------------------------------------------------------------
 	//## exported
 	
-	val webstartKeygen			= taskKey[Unit]("generate a signing key")
-	val webstart				= taskKey[File]("complete build, returns the output directory")
-	val webstartOutput			= settingKey[File]("where to put the output files")
-	val webstartGenConfig		= settingKey[Option[GenConfig]]("configurations for signing key generation")
-	val webstartKeyConfig		= settingKey[Option[KeyConfig]]("configuration for signing keys")
-	val webstartJnlpConfigs		= settingKey[Seq[JnlpConfig]]("configurations for jnlp files to create")
-	val webstartManifest		= settingKey[Option[File]]("manifest file to be included in jar files")
-	val webstartExtras			= taskKey[Traversable[(File,String)]]("extra files to include in the build")
+	val webstartKeygen		= taskKey[Unit]("generate a signing key")
+	val webstart			= taskKey[File]("complete build, returns the output directory")
+	val webstartTargetDir	= settingKey[File]("where to put the output files")
+	val webstartGenConfig	= settingKey[Option[GenConfig]]("configurations for signing key generation")
+	val webstartKeyConfig	= settingKey[Option[KeyConfig]]("configuration for signing keys")
+	val webstartJnlpConfigs	= settingKey[Seq[JnlpConfig]]("configurations for jnlp files to create")
+	val webstartManifest	= settingKey[Option[File]]("manifest file to be included in jar files")
+	val webstartExtras		= taskKey[Traversable[PathMapping]]("extra files to include in the build")
 	
 	// webstartJnlp		<<= (Keys.name) { it => it + ".jnlp" },
 	lazy val webstartSettings:Seq[Def.Setting[_]]	=
 			classpathSettings ++ 
 			Vector(
 				webstartKeygen	:=
-						keygenTaskImpl(
+						keygenTask(
 							streams		= Keys.streams.value,
 							genConfig	= webstartGenConfig.value,
 							keyConfig	= webstartKeyConfig.value
 						),
 				webstart		:=
-						buildTaskImpl(
+						buildTask(
 							streams		= Keys.streams.value,
 							assets		= classpathAssets.value,
 							keyConfig	= webstartKeyConfig.value,
 							jnlpConfigs	= webstartJnlpConfigs.value,
 							manifest	= webstartManifest.value,
 							extras		= webstartExtras.value,
-							output		= webstartOutput.value
+							targetDir	= webstartTargetDir.value
 						),
-				webstartOutput		:= Keys.crossTarget.value / "webstart",
+				webstartTargetDir	:= Keys.crossTarget.value / "webstart",
 				webstartGenConfig	:= None,
 				webstartKeyConfig	:= None,
-				webstartJnlpConfigs	:= Seq.empty,
+				webstartJnlpConfigs	:= Vector.empty,
 				webstartManifest	:= None,
-				webstartExtras		:= Seq.empty,
+				webstartExtras		:= Vector.empty,
 				Keys.watchSources	:= Keys.watchSources.value ++ webstartManifest.value.toVector
 			)
 	
 	//------------------------------------------------------------------------------
 	//## tasks
 	
-	private def buildTaskImpl(
+	private def buildTask(
 		streams:TaskStreams,	
 		assets:Seq[ClasspathAsset],
 		keyConfig:Option[KeyConfig],
 		jnlpConfigs:Seq[JnlpConfig],
 		manifest:Option[File],
-		extras:Traversable[(File,String)],
-		output:File
+		extras:Traversable[PathMapping],
+		targetDir:File
 	):File	= {
 		// BETTER copy and sign fresh jars only unless they did not exist before
-		val assetMap	=
-				for {
-					asset	<- assets
-					source	= asset.jar
-					target	= output / asset.name
-				}
-				yield (source, target)
-				
+		val assetMap		= assets map { _.flatPathMapping } map (PathMapping anchorTo targetDir)
 		streams.log info "copying assets"
 		// BETTER care about freshness
-		val assetsToCopy	= assetMap filter { case (source,target) => source newerThan target }
+		val assetsToCopy	= assetMap filter { case (source, target) => source newerThan target }
 		val assetsCopied	= IO copy assetsToCopy
 		
 		// BETTER care about freshness
@@ -133,7 +127,8 @@ object WebStartPlugin extends Plugin {
 				assets sortBy { !_.main } map { cp:ClasspathAsset =>
 					JnlpAsset(cp.name, cp.main, cp.jar.length)
 				}
-		val configFiles:Seq[(JnlpConfig,File)]	= jnlpConfigs map { it => (it, output / it.fileName) }
+		// TODO util: zipBy
+		val configFiles:Seq[(JnlpConfig,File)]	= jnlpConfigs map { it => (it, targetDir / it.fileName) }
 		configFiles foreach { case (jnlpConfig, jnlpFile) =>
 			val xml:Elem	= jnlpConfig descriptor (jnlpConfig.fileName, sortedAssets)
 			val str:String	= """<?xml version="1.0" encoding="utf-8"?>""" + "\n" + xml
@@ -142,16 +137,16 @@ object WebStartPlugin extends Plugin {
 		val jnlpFiles	= configFiles map { _._2 }
 		
 		streams.log info "copying extras"
-		val extrasToCopy	= extras map { case (file,path) => (file, output / path) }
+		val extrasToCopy	= extras map (PathMapping anchorTo targetDir)
 		val extrasCopied	= IO copy extrasToCopy
 		
 		streams.log info "cleaning up"
-		val allFiles	= (output * "*").get.toSet
-		val jarFiles	= assetMap map { case (source,target) => target }
+		val allFiles	= (targetDir * "*").get.toSet
+		val jarFiles	= assetMap map FileMapping.getTarget
 		val obsolete	= allFiles -- jarFiles -- extrasCopied -- jnlpFiles 
 		IO delete obsolete
 		
-		output
+		targetDir
 	}
 	
 	private def extendManifest(manifest:File, jar:File, log:Logger) {
@@ -192,13 +187,13 @@ object WebStartPlugin extends Plugin {
 	
 	//------------------------------------------------------------------------------
 	
-	private def keygenTaskImpl(
+	private def keygenTask(
 		streams:TaskStreams,
 		genConfig:Option[GenConfig],
 		keyConfig:Option[KeyConfig]
 	) {
-		require(genConfig.nonEmpty, s"${webstartGenConfig.key.label} must be set")
-		require(keyConfig.nonEmpty, s"${webstartKeyConfig.key.label} must be set")
+		if (genConfig.isEmpty)	failWithError(streams, s"${webstartGenConfig.key.label} must be set")
+		if (keyConfig.isEmpty)	failWithError(streams, s"${webstartKeyConfig.key.label} must be set")
 		for {
 			genConfig	<- genConfig
 			keyConfig	<- keyConfig

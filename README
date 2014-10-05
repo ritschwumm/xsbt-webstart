@@ -6,7 +6,8 @@ projects running. Let me know what you think.
 To build this code, get and install SBT from 
     https://github.com/sbt/sbt
 
-Get and install this plugin before building:
+Get and install these plugins before building:
+    https://github.com/ritschwumm/xsbt-util
     https://github.com/ritschwumm/xsbt-classpath
     
 Build and publish the plugin:
@@ -15,9 +16,9 @@ Build and publish the plugin:
     sbt publish-local
     
 Add the plugin to your project in project/plugins.sbt:
-    addSbtPlugin("de.djini" % "xsbt-webstart" % "0.17.0")
+    addSbtPlugin("de.djini" % "xsbt-webstart" % <version>)
     
-Include the plugin in you project's build.sbt:
+Include the plugin in your project's build.sbt:
 
     webstartSettings
     

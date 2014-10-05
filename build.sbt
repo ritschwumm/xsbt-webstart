@@ -4,9 +4,7 @@ name			:= "xsbt-webstart"
 
 organization	:= "de.djini"
 
-version			:= "0.17.0"
-
-addSbtPlugin("de.djini" % "xsbt-classpath" % "0.10.0")
+version			:= "1.0.0"
 
 scalacOptions	++= Seq(
 	"-deprecation",
@@ -20,3 +18,7 @@ scalacOptions	++= Seq(
 	// "-language:experimental.macros"
 	"-feature"
 )
+
+addSbtPlugin("de.djini" % "xsbt-util"		% "0.1.0")
+
+addSbtPlugin("de.djini" % "xsbt-classpath"	% "1.0.0")

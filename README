@@ -20,8 +20,6 @@ Add the plugin to your project in project/plugins.sbt:
     
 Include the plugin in your project's build.sbt:
 
-    webstartSettings
-    
     webstartGenConfig := Some(GenConfig(
         dname       = "CN=Snake Oil, OU=An Anonymous Hacker, O=Bad Guys Inc., L=Bielefeld, ST=33641, C=DE",
         validity    = 365

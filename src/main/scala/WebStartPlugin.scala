@@ -1,16 +1,16 @@
-import sbt._
+package xsbtWebStart
 
 import scala.xml.Elem
 
-import Keys.{ Classpath, TaskStreams }
-import Project.Initialize
+import sbt._
+import Keys.TaskStreams
 
-import ClasspathPlugin._
 import xsbtUtil._
+import xsbtClasspath.{ Asset => ClasspathAsset, ClasspathPlugin }
+import xsbtClasspath.Import.classpathAssets
 
-object WebStartPlugin extends Plugin {
-	//------------------------------------------------------------------------------
-	//## configuration objects
+object Import {
+	// TODO probably not a good idea
 	
 	case class GenConfig(
 		dname:String,
@@ -33,9 +33,6 @@ object WebStartPlugin extends Plugin {
 		def toElem:Elem	= <jar href={href} main={main.toString} size={size.toString}/> 
 	}
 	
-	//------------------------------------------------------------------------------
-	//## exported
-	
 	val webstartKeygen		= taskKey[Unit]("generate a signing key")
 	val webstart			= taskKey[File]("complete build, returns the output directory")
 	val webstartTargetDir	= settingKey[File]("where to put the output files")
@@ -44,10 +41,20 @@ object WebStartPlugin extends Plugin {
 	val webstartJnlpConfigs	= settingKey[Seq[JnlpConfig]]("configurations for jnlp files to create")
 	val webstartManifest	= settingKey[Option[File]]("manifest file to be included in jar files")
 	val webstartExtras		= taskKey[Traversable[PathMapping]]("extra files to include in the build")
+}
+
+object WebStartPlugin extends AutoPlugin {
+	//------------------------------------------------------------------------------
+	//## exports
 	
-	// webstartJnlp		<<= (Keys.name) { it => it + ".jnlp" },
-	lazy val webstartSettings:Seq[Def.Setting[_]]	=
-			classpathSettings ++ 
+	override def requires:Plugins		= ClasspathPlugin
+	
+	override def trigger:PluginTrigger	= allRequirements
+
+	lazy val autoImport	= Import
+	import autoImport._
+	
+	override def projectSettings:Seq[Def.Setting[_]]	=
 			Vector(
 				webstartKeygen	:=
 						keygenTask(

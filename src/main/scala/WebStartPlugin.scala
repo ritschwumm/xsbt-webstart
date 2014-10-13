@@ -5,7 +5,9 @@ import scala.xml.Elem
 import sbt._
 import Keys.TaskStreams
 
-import xsbtUtil._
+import xsbtUtil.types._
+import xsbtUtil.{ util => xu }
+	
 import xsbtClasspath.{ Asset => ClasspathAsset, ClasspathPlugin }
 import xsbtClasspath.Import.classpathAssets
 
@@ -33,35 +35,33 @@ object Import {
 		def toElem:Elem	= <jar href={href} main={main.toString} size={size.toString}/> 
 	}
 	
-	val webstartKeygen		= taskKey[Unit]("generate a signing key")
+	//------------------------------------------------------------------------------
+	
 	val webstart			= taskKey[File]("complete build, returns the output directory")
-	val webstartTargetDir	= settingKey[File]("where to put the output files")
+	val webstartKeygen		= taskKey[Unit]("generate a signing key")
+	
 	val webstartGenConfig	= settingKey[Option[GenConfig]]("configurations for signing key generation")
 	val webstartKeyConfig	= settingKey[Option[KeyConfig]]("configuration for signing keys")
 	val webstartJnlpConfigs	= settingKey[Seq[JnlpConfig]]("configurations for jnlp files to create")
 	val webstartManifest	= settingKey[Option[File]]("manifest file to be included in jar files")
 	val webstartExtras		= taskKey[Traversable[PathMapping]]("extra files to include in the build")
+
+	val webstartBuildDir	= settingKey[File]("where to put the output files")
 }
 
 object WebStartPlugin extends AutoPlugin {
 	//------------------------------------------------------------------------------
 	//## exports
 	
-	override def requires:Plugins		= ClasspathPlugin
-	
-	override def trigger:PluginTrigger	= allRequirements
-
 	lazy val autoImport	= Import
 	import autoImport._
 	
-	override def projectSettings:Seq[Def.Setting[_]]	=
+	override val requires:Plugins		= ClasspathPlugin && plugins.JvmPlugin
+	
+	override val trigger:PluginTrigger	= noTrigger
+
+	override lazy val projectSettings:Seq[Def.Setting[_]]	=
 			Vector(
-				webstartKeygen	:=
-						keygenTask(
-							streams		= Keys.streams.value,
-							genConfig	= webstartGenConfig.value,
-							keyConfig	= webstartKeyConfig.value
-						),
 				webstart		:=
 						buildTask(
 							streams		= Keys.streams.value,
@@ -70,14 +70,23 @@ object WebStartPlugin extends AutoPlugin {
 							jnlpConfigs	= webstartJnlpConfigs.value,
 							manifest	= webstartManifest.value,
 							extras		= webstartExtras.value,
-							targetDir	= webstartTargetDir.value
+							buildDir	= webstartBuildDir.value
 						),
-				webstartTargetDir	:= Keys.crossTarget.value / "webstart",
+				webstartKeygen	:=
+						keygenTask(
+							streams		= Keys.streams.value,
+							genConfig	= webstartGenConfig.value,
+							keyConfig	= webstartKeyConfig.value
+						),
+						
 				webstartGenConfig	:= None,
 				webstartKeyConfig	:= None,
 				webstartJnlpConfigs	:= Vector.empty,
 				webstartManifest	:= None,
 				webstartExtras		:= Vector.empty,
+				
+				webstartBuildDir	:= Keys.crossTarget.value / "webstart",
+				
 				Keys.watchSources	:= Keys.watchSources.value ++ webstartManifest.value.toVector
 			)
 	
@@ -91,10 +100,10 @@ object WebStartPlugin extends AutoPlugin {
 		jnlpConfigs:Seq[JnlpConfig],
 		manifest:Option[File],
 		extras:Traversable[PathMapping],
-		targetDir:File
+		buildDir:File
 	):File	= {
 		// BETTER copy and sign fresh jars only unless they did not exist before
-		val assetMap		= assets map { _.flatPathMapping } map (PathMapping anchorTo targetDir)
+		val assetMap		= assets map { _.flatPathMapping } map (xu.pathMapping anchorTo buildDir)
 		streams.log info "copying assets"
 		// BETTER care about freshness
 		val assetsToCopy	= assetMap filter { case (source, target) => source newerThan target }
@@ -135,7 +144,7 @@ object WebStartPlugin extends AutoPlugin {
 					JnlpAsset(cp.name, cp.main, cp.jar.length)
 				}
 		// TODO util: zipBy
-		val configFiles:Seq[(JnlpConfig,File)]	= jnlpConfigs map { it => (it, targetDir / it.fileName) }
+		val configFiles:Seq[(JnlpConfig,File)]	= jnlpConfigs map { it => (it, buildDir / it.fileName) }
 		configFiles foreach { case (jnlpConfig, jnlpFile) =>
 			val xml:Elem	= jnlpConfig descriptor (jnlpConfig.fileName, sortedAssets)
 			val str:String	= """<?xml version="1.0" encoding="utf-8"?>""" + "\n" + xml
@@ -144,16 +153,16 @@ object WebStartPlugin extends AutoPlugin {
 		val jnlpFiles	= configFiles map { _._2 }
 		
 		streams.log info "copying extras"
-		val extrasToCopy	= extras map (PathMapping anchorTo targetDir)
+		val extrasToCopy	= extras map (xu.pathMapping anchorTo buildDir)
 		val extrasCopied	= IO copy extrasToCopy
 		
 		streams.log info "cleaning up"
-		val allFiles	= (targetDir * "*").get.toSet
-		val jarFiles	= assetMap map FileMapping.getTarget
+		val allFiles	= (buildDir * "*").get.toSet
+		val jarFiles	= assetMap map xu.fileMapping.getTarget
 		val obsolete	= allFiles -- jarFiles -- extrasCopied -- jnlpFiles 
 		IO delete obsolete
 		
-		targetDir
+		buildDir
 	}
 	
 	private def extendManifest(manifest:File, jar:File, log:Logger) {
@@ -199,8 +208,8 @@ object WebStartPlugin extends AutoPlugin {
 		genConfig:Option[GenConfig],
 		keyConfig:Option[KeyConfig]
 	) {
-		if (genConfig.isEmpty)	failWithError(streams, s"${webstartGenConfig.key.label} must be set")
-		if (keyConfig.isEmpty)	failWithError(streams, s"${webstartKeyConfig.key.label} must be set")
+		if (genConfig.isEmpty)	xu.fail logging (streams, s"${webstartGenConfig.key.label} must be set")
+		if (keyConfig.isEmpty)	xu.fail logging (streams, s"${webstartKeyConfig.key.label} must be set")
 		for {
 			genConfig	<- genConfig
 			keyConfig	<- keyConfig

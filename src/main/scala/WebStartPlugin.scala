@@ -27,12 +27,12 @@ object Import {
 	)
 	
 	case class JnlpConfig(
-		fileName:String, 
+		fileName:String,
 		descriptor:(String,Seq[JnlpAsset])=>Elem
 	)
 	
 	case class JnlpAsset(href:String, main:Boolean, size:Long) {
-		def toElem:Elem	= <jar href={href} main={main.toString} size={size.toString}/> 
+		def toElem:Elem	= <jar href={href} main={main.toString} size={size.toString}/>
 	}
 	
 	//------------------------------------------------------------------------------
@@ -159,7 +159,7 @@ object WebStartPlugin extends AutoPlugin {
 		streams.log info "cleaning up"
 		val allFiles	= (buildDir * "*").get.toSet
 		val jarFiles	= assetMap map xu.fileMapping.getTarget
-		val obsolete	= allFiles -- jarFiles -- extrasCopied -- jnlpFiles 
+		val obsolete	= allFiles -- jarFiles -- extrasCopied -- jnlpFiles
 		IO delete obsolete
 		
 		buildDir
@@ -167,7 +167,7 @@ object WebStartPlugin extends AutoPlugin {
 	
 	private def extendManifest(manifest:File, jar:File, log:Logger) {
 		val rc	=
-				Process("jar", List(
+				Process("jar", Vector(
 					"umf",
 					manifest.getAbsolutePath,
 					jar.getAbsolutePath
@@ -178,20 +178,20 @@ object WebStartPlugin extends AutoPlugin {
 	private def signAndVerify(keyConfig:KeyConfig, jar:File, log:Logger) {
 		// sigfile, storetype, provider, providerName
 		val rc1	=
-				Process("jarsigner", List(
+				Process("jarsigner", Vector(
 					// "-verbose",
 					"-keystore",	keyConfig.keyStore.getAbsolutePath,
 					"-storepass",	keyConfig.storePass,
 					"-keypass",		keyConfig.keyPass,
-					// TODO makes the vm crash???
+					// TODO makes the vm crash ???
 					// "-signedjar",	jar.getAbsolutePath,
 					jar.getAbsolutePath,
 					keyConfig.alias
 				)) ! log
 		if (rc1 != 0)	sys error s"sign failed: ${rc1}"
 	
-		val rc2	= 
-				Process("jarsigner", List(
+		val rc2	=
+				Process("jarsigner", Vector(
 					"-verify",
 					"-keystore",	keyConfig.keyStore.getAbsolutePath,
 					"-storepass",	keyConfig.storePass,
@@ -220,13 +220,13 @@ object WebStartPlugin extends AutoPlugin {
 	}
 	
 	private def genkey(keyConfig:KeyConfig, genConfig:GenConfig, log:Logger) {
-		val rc	= 
-				Process("keytool", List(
-					"-genkey", 
-					"-dname",		genConfig.dname, 
-					"-validity",	genConfig.validity.toString, 
+		val rc	=
+				Process("keytool", Vector(
+					"-genkey",
+					"-dname",		genConfig.dname,
+					"-validity",	genConfig.validity.toString,
 					"-keystore",	keyConfig.keyStore.getAbsolutePath,
-					"-storePass",	keyConfig.storePass, 
+					"-storePass",	keyConfig.storePass,
 					"-keypass",		keyConfig.keyPass,
 					"-alias",		keyConfig.alias
 				)) ! log

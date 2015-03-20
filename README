@@ -3,21 +3,21 @@ A Webstart plugin for sbt
 At the moment, this is only a rough draft, just enough to get my own
 projects running. Let me know what you think.
 
-To build this code, get and install SBT from 
+To build this code, get and install SBT from
     https://github.com/sbt/sbt
 
 Get and install these plugins before building:
     https://github.com/ritschwumm/xsbt-util
     https://github.com/ritschwumm/xsbt-classpath
-    
+
 Build and publish the plugin:
     git clone git@github.com:ritschwumm/xsbt-webstart.git
     cd xsbt-webstart
     sbt publish-local
-    
+
 Add the plugin to your project in project/plugins.sbt:
     addSbtPlugin("de.djini" % "xsbt-webstart" % <version>)
-    
+
 Include the plugin in your project's build.sbt:
 
     webstartGenConfig := Some(GenConfig(
@@ -31,7 +31,7 @@ Include the plugin in your project's build.sbt:
         alias       = "alias",
         keyPass     = "password"
     ))
-    
+
     webstartJnlpConfigs    := Seq(JnlpConfig(
         fileName    = "my.jnlp",
         descriptor  = (fileName:String, assets:Seq[JnlpAsset]) => {
@@ -45,7 +45,7 @@ Include the plugin in your project's build.sbt:
                 </information>
                 <security>
                     <all-permissions/>
-                </security> 
+                </security>
                 <resources>
                     <j2se version="1.6+" max-heap-size="192m"/>
                     { assets map { _.toElem } }
@@ -54,7 +54,7 @@ Include the plugin in your project's build.sbt:
             </jnlp>
         }
     ))
-    
+
     /*
     on osx this file must contain the line
     Permissions: all-permissions

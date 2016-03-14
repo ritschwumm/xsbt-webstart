@@ -141,7 +141,7 @@ object WebStartPlugin extends AutoPlugin {
 		// main jar must come first
 		val sortedAssets	=
 				assets sortBy { !_.main } map { cp:ClasspathAsset =>
-					JnlpAsset(cp.name, cp.main, cp.jar.length)
+					JnlpAsset(cp.name, cp.main, cp.file.length)
 				}
 		// TODO util: zipBy
 		val configFiles:Seq[(JnlpConfig,File)]	= jnlpConfigs map { it => (it, buildDir / it.fileName) }

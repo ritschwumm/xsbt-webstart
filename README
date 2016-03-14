@@ -35,7 +35,7 @@ Include the plugin in your project's build.sbt:
     webstartJnlpConfigs    := Seq(JnlpConfig(
         fileName    = "my.jnlp",
         descriptor  = (fileName:String, assets:Seq[JnlpAsset]) => {
-            <jnlp spec="1.5+" codebase="$$codebase" href={fileName}>
+            <jnlp spec="6.0+" codebase="$$codebase" href={fileName}>
                 <information>
                     <title>My Title</title>
                     <vendor>My Company</vendor>
@@ -47,7 +47,7 @@ Include the plugin in your project's build.sbt:
                     <all-permissions/>
                 </security>
                 <resources>
-                    <j2se version="1.6+" max-heap-size="192m"/>
+                    <j2se version="1.7+" max-heap-size="192m"/>
                     { assets map { _.toElem } }
                 </resources>
                 <application-desc main-class="my.Main"/>

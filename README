@@ -47,7 +47,7 @@ Include the plugin in your project's build.sbt:
                     <all-permissions/>
                 </security>
                 <resources>
-                    <j2se version="1.7+" max-heap-size="192m"/>
+                    <j2se version="1.8+" max-heap-size="192m"/>
                     { assets map { _.toElem } }
                 </resources>
                 <application-desc main-class="my.Main"/>

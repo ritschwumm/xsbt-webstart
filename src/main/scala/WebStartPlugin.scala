@@ -117,7 +117,7 @@ object WebStartPlugin extends AutoPlugin {
 			}
 			manifest foreach { manifest =>
 				streams.log info "extending jar manifests"
-				freshJars.par foreach { jar =>
+				parForeach(freshJars) { jar =>
 					extendManifest(manifest, jar, streams.log)
 				}
 			}
@@ -127,7 +127,7 @@ object WebStartPlugin extends AutoPlugin {
 			}
 			keyConfig foreach { keyConfig =>
 				streams.log info "signing jars"
-				freshJars.par foreach { jar =>
+				parForeach(freshJars) { jar =>
 					signAndVerify(keyConfig, jar, streams.log)
 				}
 			}
@@ -231,5 +231,29 @@ object WebStartPlugin extends AutoPlugin {
 					"-alias",		keyConfig.alias
 				)) ! log
 		if (rc != 0)	sys error s"key gen failed: ${rc}"
+	}
+	
+	//------------------------------------------------------------------------------
+	
+	import scala.concurrent.{ Future => SFuture, _ }
+	import scala.concurrent.duration._
+	import ExecutionContext.Implicits.global
+
+	private val timeout	= 1.hour
+	
+	private def parForeach[T](xs:Iterable[T])(task:T=>Unit) {
+		// throws a NumberFormatException on java 9
+		//xs.par foreach task
+		
+		Await result (
+			SFuture sequence (
+				xs map { it =>
+					SFuture {
+						task(it)
+					}
+				}
+			),
+			timeout
+		)
 	}
 }

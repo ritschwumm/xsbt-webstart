@@ -23,7 +23,8 @@ object Import {
 		keyStore:File,
 		storePass:String,
 		alias:String,
-		keyPass:String
+		keyPass:String,
+		tsaUrl:Option[String]
 	)
 	
 	case class JnlpConfig(
@@ -176,28 +177,36 @@ object WebStartPlugin extends AutoPlugin {
 	}
 	
 	private def signAndVerify(keyConfig:KeyConfig, jar:File, log:Logger) {
-		// sigfile, storetype, provider, providerName
-		val rc1	=
-				Process("jarsigner", Vector(
+		val args	=
+				Vector(
 					// "-verbose",
 					"-keystore",	keyConfig.keyStore.getAbsolutePath,
 					"-storepass",	keyConfig.storePass,
-					"-keypass",		keyConfig.keyPass,
-					// TODO makes the vm crash ???
-					// "-signedjar",	jar.getAbsolutePath,
-					jar.getAbsolutePath,
-					keyConfig.alias
-				)) ! log
+					"-keypass",		keyConfig.keyPass
+				) ++ (
+					keyConfig.tsaUrl.toVector flatMap { url => Vector("-tsa", url) }
+				)
+					
+		// sigfile, storetype, provider, providerName
+		val rc1	=
+				Process(
+					"jarsigner",
+					args ++ Vector(
+						// TODO makes the vm crash ???
+						// "-signedjar",	jar.getAbsolutePath,
+						jar.getAbsolutePath,
+						keyConfig.alias
+					)
+				) ! log
 		if (rc1 != 0)	sys error s"sign failed: ${rc1}"
 	
 		val rc2	=
-				Process("jarsigner", Vector(
-					"-verify",
-					"-keystore",	keyConfig.keyStore.getAbsolutePath,
-					"-storepass",	keyConfig.storePass,
-					"-keypass",		keyConfig.keyPass,
-					jar.getAbsolutePath
-				)) ! log
+				Process(
+					"jarsigner",
+					Vector("-verify") ++ args ++ Vector(	
+						jar.getAbsolutePath
+					)
+				) ! log
 		if (rc2 != 0)	sys error s"verify failed: ${rc2}"
 	}
 	

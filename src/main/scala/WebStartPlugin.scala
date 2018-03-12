@@ -1,5 +1,6 @@
 package xsbtWebStart
 
+import scala.sys.process._
 import scala.xml.Elem
 
 import sbt._
@@ -88,7 +89,7 @@ object WebStartPlugin extends AutoPlugin {
 				
 				webstartBuildDir	:= Keys.crossTarget.value / "webstart",
 				
-				Keys.watchSources	:= Keys.watchSources.value ++ webstartManifest.value.toVector
+				Keys.watchSources	:= Keys.watchSources.value ++ (webstartManifest.value map Watched.WatchSource.apply)
 			)
 	
 	//------------------------------------------------------------------------------

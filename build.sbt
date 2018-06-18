@@ -2,7 +2,7 @@ sbtPlugin		:= true
 
 name			:= "xsbt-webstart"
 organization	:= "de.djini"
-version			:= "2.1.0"
+version			:= "2.2.0"
 
 scalacOptions	++= Seq(
 	"-deprecation",

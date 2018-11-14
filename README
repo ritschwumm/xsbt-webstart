@@ -65,4 +65,4 @@ Include the plugin in your project's build.sbt:
 Once set up you can use the following tasks in sbt:
 
     webstart        creates a directory with a JNLP file and all necessary jar files
-    webstart-keygen creates a keyStore, fails if it already exists
+    webstartKeygen  creates a keyStore, fails if it already exists

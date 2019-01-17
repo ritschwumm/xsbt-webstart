@@ -11,18 +11,18 @@ import xsbtUtil.implicits._
 import xsbtUtil.data._
 import xsbtUtil.types._
 import xsbtUtil.{ util => xu }
-	
+
 import xsbtClasspath.{ Asset => ClasspathAsset, ClasspathPlugin }
 import xsbtClasspath.Import.classpathAssets
 
 object Import {
 	// TODO probably not a good idea
-	
+
 	case class GenConfig(
 		dname:String,
 		validity:Int
 	)
-	
+
 	case class KeyConfig(
 		keyStore:File,
 		storePass:String,
@@ -30,21 +30,21 @@ object Import {
 		keyPass:String,
 		tsaUrl:Option[String]
 	)
-	
+
 	case class JnlpConfig(
 		fileName:String,
 		descriptor:(String,Seq[JnlpAsset])=>Elem
 	)
-	
+
 	case class JnlpAsset(href:String, main:Boolean, size:Long) {
 		def toElem:Elem	= <jar href={href} main={main.toString} size={size.toString}/>
 	}
-	
+
 	//------------------------------------------------------------------------------
-	
+
 	val webstart			= taskKey[File]("complete build, returns the output directory")
 	val webstartKeygen		= taskKey[Unit]("generate a signing key")
-	
+
 	val webstartGenConfig	= settingKey[Option[GenConfig]]("configurations for signing key generation")
 	val webstartKeyConfig	= settingKey[Option[KeyConfig]]("configuration for signing keys")
 	val webstartJnlpConfigs	= settingKey[Seq[JnlpConfig]]("configurations for jnlp files to create")
@@ -59,12 +59,12 @@ object Import {
 object WebStartPlugin extends AutoPlugin {
 	//------------------------------------------------------------------------------
 	//## exports
-	
+
 	lazy val autoImport	= Import
 	import autoImport._
-	
+
 	override val requires:Plugins		= ClasspathPlugin && plugins.JvmPlugin
-	
+
 	override val trigger:PluginTrigger	= noTrigger
 
 	override lazy val projectSettings:Seq[Def.Setting[_]]	=
@@ -86,24 +86,24 @@ object WebStartPlugin extends AutoPlugin {
 							genConfig	= webstartGenConfig.value,
 							keyConfig	= webstartKeyConfig.value
 						),
-						
+
 				webstartGenConfig	:= None,
 				webstartKeyConfig	:= None,
 				webstartJnlpConfigs	:= Vector.empty,
 				webstartManifest	:= None,
 				webstartExtras		:= Vector.empty,
 				webstartJarsignerVerifyOptions := Vector.empty,
-				
+
 				webstartBuildDir	:= Keys.crossTarget.value / "webstart",
-				
+
 				Keys.watchSources	:= Keys.watchSources.value ++ (webstartManifest.value map Watched.WatchSource.apply)
 			)
-	
+
 	//------------------------------------------------------------------------------
 	//## tasks
-	
+
 	private def buildTask(
-		streams:TaskStreams,	
+		streams:TaskStreams,
 		assets:Seq[ClasspathAsset],
 		keyConfig:Option[KeyConfig],
 		jnlpConfigs:Seq[JnlpConfig],
@@ -118,7 +118,7 @@ object WebStartPlugin extends AutoPlugin {
 		// BETTER care about freshness
 		val assetsToCopy	= assetMap filter { case (source, target) => source newerThan target }
 		val assetsCopied	= IO copy assetsToCopy
-		
+
 		// BETTER care about freshness
 		val freshJars	= assetsCopied
 		if (freshJars.nonEmpty) {
@@ -137,7 +137,7 @@ object WebStartPlugin extends AutoPlugin {
 					file.delete()
 				}
 			}
-			
+
 			if (keyConfig.isEmpty) {
 				streams.log info "missing KeyConfig, leaving jar files unsigned"
 			}
@@ -157,7 +157,7 @@ object WebStartPlugin extends AutoPlugin {
 		else {
 			streams.log info "no fresh jars to sign"
 		}
-		
+
 		// @see http://download.oracle.com/javase/tutorial/deployment/deploymentInDepth/jnlpFileSyntax.html
 		streams.log info "creating jnlp descriptor(s)"
 		// main jar must come first
@@ -173,20 +173,20 @@ object WebStartPlugin extends AutoPlugin {
 			IO write (jnlpFile, str)
 		}
 		val jnlpFiles	= configFiles map { _._2 }
-		
+
 		streams.log info "copying extras"
 		val extrasToCopy	= extras map (xu.pathMapping anchorTo buildDir)
 		val extrasCopied	= IO copy extrasToCopy
-		
+
 		streams.log info "cleaning up"
 		val allFiles	= (buildDir * "*").get.toSet
 		val jarFiles	= assetMap map xu.fileMapping.getTarget
 		val obsolete	= allFiles -- jarFiles -- extrasCopied -- jnlpFiles
 		IO delete obsolete
-		
+
 		buildDir
 	}
-	
+
 	/** returns an error message if necessary */
 	private def extendManifest(manifest:File, jar:File, log:Logger):Safe[String,Unit]	= {
 		val rc	=
@@ -195,10 +195,10 @@ object WebStartPlugin extends AutoPlugin {
 					manifest.getAbsolutePath,
 					jar.getAbsolutePath
 				)) ! log
-				
+
 		rc == 0 safeGuard s"jar returned ${rc}".nes
 	}
-	
+
 	private def signAndVerify(keyConfig:KeyConfig, jar:File, jarsignerVerifyOptions: Seq[String], log:Logger):Safe[String,Unit]	= {
 		val args	=
 				Vector(
@@ -209,7 +209,7 @@ object WebStartPlugin extends AutoPlugin {
 				) ++ (
 					keyConfig.tsaUrl.toVector flatMap { url => Vector("-tsa", url) }
 				)
-				
+
 		def sign():Safe[String,Unit]	= {
 			// sigfile, storetype, provider, providerName
 			val rc	=
@@ -224,27 +224,30 @@ object WebStartPlugin extends AutoPlugin {
 					) ! log
 			rc == 0 safeGuard s"jarsigner returned ${rc} (sign)".nes
 		}
-		
+
 		def verify():Safe[String,Unit]	= {
 			val rc	=
 					Process(
 						"jarsigner",
-						Vector("-verify") ++ args ++ jarsignerVerifyOptions ++ Vector(
+						Vector("-verify")		++
+						args					++
+						jarsignerVerifyOptions	++
+						Vector(
 							jar.getAbsolutePath
 						)
 					) ! log
 			rc == 0 safeGuard s"jarsigner returned ${rc} (verify)".nes
 		}
-		
+
 		for {
 			_	<- sign()
 			_	<- verify()
 		}
 		yield ()
 	}
-	
+
 	//------------------------------------------------------------------------------
-	
+
 	private def keygenTask(
 		streams:TaskStreams,
 		genConfig:Option[GenConfig],
@@ -263,7 +266,7 @@ object WebStartPlugin extends AutoPlugin {
 			}
 		}
 	}
-	
+
 	private def genkey(keyConfig:KeyConfig, genConfig:GenConfig, log:Logger):Safe[String,Unit]	= {
 		val rc	=
 				Process("keytool", Vector(
@@ -275,23 +278,23 @@ object WebStartPlugin extends AutoPlugin {
 					"-keypass",		keyConfig.keyPass,
 					"-alias",		keyConfig.alias
 				)) ! log
-				
+
 		rc == 0 safeGuard s"keytool returned ${rc}".nes
 	}
-	
+
 	//------------------------------------------------------------------------------
-	
+
 	import scala.concurrent.{ Future => SFuture, _ }
 	import scala.concurrent.duration._
 	import ExecutionContext.Implicits.global
 
 	private val timeout	= 1.hour
-	
+
 	/** returns an error messages if necessary */
 	private def parDo[E,S,T](xs:ISeq[S])(task:S=>Safe[E,T]):Safe[(E,S),ISeq[T]]	= {
 		// throws a NumberFormatException on java 9
 		//xs.par foreach task
-				
+
 		val errors:SFuture[Safe[(E,S),ISeq[T]]]	=
 				SFuture
 				.sequence (
@@ -308,12 +311,12 @@ object WebStartPlugin extends AutoPlugin {
 					// TODO xsbtUtil use sequenceSafe when available
 					xs traverseSafe identity
 				}
-			
+
 		Await result (errors, timeout)
 	}
-	
+
 	//------------------------------------------------------------------------------
-	
+
 	private def failSafe[E,T](value:Safe[E,T])(handle:E=>Unit):T	=
 			value cata (
 				errs	=> {
@@ -322,6 +325,6 @@ object WebStartPlugin extends AutoPlugin {
 				},
 				identity
 			)
-			
+
 	object BuildAbortException extends RuntimeException("build aborted") with FeedbackProvidedException
 }

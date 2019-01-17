@@ -52,6 +52,8 @@ object Import {
 	val webstartExtras		= taskKey[Traversable[PathMapping]]("extra files to include in the build")
 
 	val webstartBuildDir	= settingKey[File]("where to put the output files")
+	val webstartJarsignerVerifyOptions =
+		settingKey[Seq[String]]("custom jarsigner options when verifying")
 }
 
 object WebStartPlugin extends AutoPlugin {
@@ -75,7 +77,8 @@ object WebStartPlugin extends AutoPlugin {
 							jnlpConfigs	= webstartJnlpConfigs.value,
 							manifest	= webstartManifest.value,
 							extras		= webstartExtras.value,
-							buildDir	= webstartBuildDir.value
+							buildDir	= webstartBuildDir.value,
+							jarsignerVerifyOptions = webstartJarsignerVerifyOptions.value
 						),
 				webstartKeygen	:=
 						keygenTask(
@@ -89,6 +92,7 @@ object WebStartPlugin extends AutoPlugin {
 				webstartJnlpConfigs	:= Vector.empty,
 				webstartManifest	:= None,
 				webstartExtras		:= Vector.empty,
+				webstartJarsignerVerifyOptions := Vector.empty,
 				
 				webstartBuildDir	:= Keys.crossTarget.value / "webstart",
 				
@@ -105,7 +109,8 @@ object WebStartPlugin extends AutoPlugin {
 		jnlpConfigs:Seq[JnlpConfig],
 		manifest:Option[File],
 		extras:Traversable[PathMapping],
-		buildDir:File
+		buildDir:File,
+		jarsignerVerifyOptions: Seq[String]
 	):File	= {
 		// BETTER copy and sign fresh jars only unless they did not exist before
 		val assetMap		= assets map { _.flatPathMapping } map (xu.pathMapping anchorTo buildDir)
@@ -140,7 +145,7 @@ object WebStartPlugin extends AutoPlugin {
 				streams.log info s"signing jars"
 				val res:Safe[(String,File),ISeq[Unit]]	=
 						parDo(freshJars.toVector) { jar =>
-							signAndVerify(keyConfig, jar, streams.log)
+							signAndVerify(keyConfig, jar, jarsignerVerifyOptions, streams.log)
 						}
 				failSafe(res) { case (err,file) =>
 					streams.log error s"failed to sign jar $file: $err"
@@ -194,7 +199,7 @@ object WebStartPlugin extends AutoPlugin {
 		rc == 0 safeGuard s"jar returned ${rc}".nes
 	}
 	
-	private def signAndVerify(keyConfig:KeyConfig, jar:File, log:Logger):Safe[String,Unit]	= {
+	private def signAndVerify(keyConfig:KeyConfig, jar:File, jarsignerVerifyOptions: Seq[String], log:Logger):Safe[String,Unit]	= {
 		val args	=
 				Vector(
 					// "-verbose",
@@ -224,7 +229,7 @@ object WebStartPlugin extends AutoPlugin {
 			val rc	=
 					Process(
 						"jarsigner",
-						Vector("-verify") ++ args ++ Vector(	
+						Vector("-verify") ++ args ++ jarsignerVerifyOptions ++ Vector(
 							jar.getAbsolutePath
 						)
 					) ! log

@@ -51,9 +51,8 @@ object Import {
 	val webstartManifest	= settingKey[Option[File]]("manifest file to be included in jar files")
 	val webstartExtras		= taskKey[Traversable[PathMapping]]("extra files to include in the build")
 
-	val webstartBuildDir	= settingKey[File]("where to put the output files")
-	val webstartJarsignerVerifyOptions =
-		settingKey[Seq[String]]("custom jarsigner options when verifying")
+	val webstartBuildDir				= settingKey[File]("where to put the output files")
+	val webstartJarsignerVerifyOptions	= settingKey[Seq[String]]("custom jarsigner options when verifying")
 }
 
 object WebStartPlugin extends AutoPlugin {
@@ -68,36 +67,36 @@ object WebStartPlugin extends AutoPlugin {
 	override val trigger:PluginTrigger	= noTrigger
 
 	override lazy val projectSettings:Seq[Def.Setting[_]]	=
-			Vector(
-				webstart		:=
-						buildTask(
-							streams		= Keys.streams.value,
-							assets		= classpathAssets.value,
-							keyConfig	= webstartKeyConfig.value,
-							jnlpConfigs	= webstartJnlpConfigs.value,
-							manifest	= webstartManifest.value,
-							extras		= webstartExtras.value,
-							buildDir	= webstartBuildDir.value,
-							jarsignerVerifyOptions = webstartJarsignerVerifyOptions.value
-						),
-				webstartKeygen	:=
-						keygenTask(
-							streams		= Keys.streams.value,
-							genConfig	= webstartGenConfig.value,
-							keyConfig	= webstartKeyConfig.value
-						),
+		Vector(
+			webstart		:=
+				buildTask(
+					streams		= Keys.streams.value,
+					assets		= classpathAssets.value,
+					keyConfig	= webstartKeyConfig.value,
+					jnlpConfigs	= webstartJnlpConfigs.value,
+					manifest	= webstartManifest.value,
+					extras		= webstartExtras.value,
+					buildDir	= webstartBuildDir.value,
+					jarsignerVerifyOptions = webstartJarsignerVerifyOptions.value
+				),
+			webstartKeygen	:=
+				keygenTask(
+					streams		= Keys.streams.value,
+					genConfig	= webstartGenConfig.value,
+					keyConfig	= webstartKeyConfig.value
+				),
 
-				webstartGenConfig	:= None,
-				webstartKeyConfig	:= None,
-				webstartJnlpConfigs	:= Vector.empty,
-				webstartManifest	:= None,
-				webstartExtras		:= Vector.empty,
-				webstartJarsignerVerifyOptions := Vector.empty,
+			webstartGenConfig	:= None,
+			webstartKeyConfig	:= None,
+			webstartJnlpConfigs	:= Vector.empty,
+			webstartManifest	:= None,
+			webstartExtras		:= Vector.empty,
+			webstartJarsignerVerifyOptions := Vector.empty,
 
-				webstartBuildDir	:= Keys.crossTarget.value / "webstart",
+			webstartBuildDir	:= Keys.crossTarget.value / "webstart",
 
-				Keys.watchSources	:= Keys.watchSources.value ++ (webstartManifest.value map Watched.WatchSource.apply)
-			)
+			Keys.watchSources	:= Keys.watchSources.value ++ (webstartManifest.value map Watched.WatchSource.apply)
+		)
 
 	//------------------------------------------------------------------------------
 	//## tasks
@@ -190,52 +189,52 @@ object WebStartPlugin extends AutoPlugin {
 	/** returns an error message if necessary */
 	private def extendManifest(manifest:File, jar:File, log:Logger):Safe[String,Unit]	= {
 		val rc	=
-				Process("jar", Vector(
-					"umf",
-					manifest.getAbsolutePath,
-					jar.getAbsolutePath
-				)) ! log
+			Process("jar", Vector(
+				"umf",
+				manifest.getAbsolutePath,
+				jar.getAbsolutePath
+			)) ! log
 
 		rc == 0 safeGuard s"jar returned ${rc}".nes
 	}
 
 	private def signAndVerify(keyConfig:KeyConfig, jar:File, jarsignerVerifyOptions: Seq[String], log:Logger):Safe[String,Unit]	= {
 		val args	=
-				Vector(
-					// "-verbose",
-					"-keystore",	keyConfig.keyStore.getAbsolutePath,
-					"-storepass",	keyConfig.storePass,
-					"-keypass",		keyConfig.keyPass
-				) ++ (
-					keyConfig.tsaUrl.toVector flatMap { url => Vector("-tsa", url) }
-				)
+			Vector(
+				// "-verbose",
+				"-keystore",	keyConfig.keyStore.getAbsolutePath,
+				"-storepass",	keyConfig.storePass,
+				"-keypass",		keyConfig.keyPass
+			) ++ (
+				keyConfig.tsaUrl.toVector flatMap { url => Vector("-tsa", url) }
+			)
 
 		def sign():Safe[String,Unit]	= {
 			// sigfile, storetype, provider, providerName
 			val rc	=
-					Process(
-						"jarsigner",
-						args ++ Vector(
-							// TODO makes the vm crash ???
-							// "-signedjar",	jar.getAbsolutePath,
-							jar.getAbsolutePath,
-							keyConfig.alias
-						)
-					) ! log
+				Process(
+					"jarsigner",
+					args ++ Vector(
+						// TODO makes the vm crash ???
+						// "-signedjar",	jar.getAbsolutePath,
+						jar.getAbsolutePath,
+						keyConfig.alias
+					)
+				) ! log
 			rc == 0 safeGuard s"jarsigner returned ${rc} (sign)".nes
 		}
 
 		def verify():Safe[String,Unit]	= {
 			val rc	=
-					Process(
-						"jarsigner",
-						Vector("-verify")		++
-						args					++
-						jarsignerVerifyOptions	++
-						Vector(
-							jar.getAbsolutePath
-						)
-					) ! log
+				Process(
+					"jarsigner",
+					Vector("-verify")		++
+					args					++
+					jarsignerVerifyOptions	++
+					Vector(
+						jar.getAbsolutePath
+					)
+				) ! log
 			rc == 0 safeGuard s"jarsigner returned ${rc} (verify)".nes
 		}
 
@@ -269,15 +268,15 @@ object WebStartPlugin extends AutoPlugin {
 
 	private def genkey(keyConfig:KeyConfig, genConfig:GenConfig, log:Logger):Safe[String,Unit]	= {
 		val rc	=
-				Process("keytool", Vector(
-					"-genkey",
-					"-dname",		genConfig.dname,
-					"-validity",	genConfig.validity.toString,
-					"-keystore",	keyConfig.keyStore.getAbsolutePath,
-					"-storePass",	keyConfig.storePass,
-					"-keypass",		keyConfig.keyPass,
-					"-alias",		keyConfig.alias
-				)) ! log
+			Process("keytool", Vector(
+				"-genkey",
+				"-dname",		genConfig.dname,
+				"-validity",	genConfig.validity.toString,
+				"-keystore",	keyConfig.keyStore.getAbsolutePath,
+				"-storePass",	keyConfig.storePass,
+				"-keypass",		keyConfig.keyPass,
+				"-alias",		keyConfig.alias
+			)) ! log
 
 		rc == 0 safeGuard s"keytool returned ${rc}".nes
 	}
@@ -296,21 +295,21 @@ object WebStartPlugin extends AutoPlugin {
 		//xs.par foreach task
 
 		val errors:SFuture[Safe[(E,S),ISeq[T]]]	=
-				SFuture
-				.sequence (
-					xs map { it =>
-						SFuture {
-							task(it) cata (
-								fail	=> Safe fail (fail map (_ -> it)),
-								Safe.win
-							)
-						}
+			SFuture
+			.sequence (
+				xs map { it =>
+					SFuture {
+						task(it) cata (
+							fail	=> Safe fail (fail map (_ -> it)),
+							Safe.win
+						)
 					}
-				)
-				.map { xs:ISeq[Safe[(E,S),T]] =>
-					// TODO xsbtUtil use sequenceSafe when available
-					xs traverseSafe identity
 				}
+			)
+			.map { xs:ISeq[Safe[(E,S),T]] =>
+				// TODO xsbtUtil use sequenceSafe when available
+				xs traverseSafe identity
+			}
 
 		Await result (errors, timeout)
 	}
@@ -318,13 +317,13 @@ object WebStartPlugin extends AutoPlugin {
 	//------------------------------------------------------------------------------
 
 	private def failSafe[E,T](value:Safe[E,T])(handle:E=>Unit):T	=
-			value cata (
-				errs	=> {
-					errs foreach handle
-					throw BuildAbortException
-				},
-				identity
-			)
+		value cata (
+			errs	=> {
+				errs foreach handle
+				throw BuildAbortException
+			},
+			identity
+		)
 
 	object BuildAbortException extends RuntimeException("build aborted") with FeedbackProvidedException
 }

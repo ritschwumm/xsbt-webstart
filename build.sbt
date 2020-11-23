@@ -2,22 +2,15 @@ sbtPlugin		:= true
 
 name			:= "xsbt-webstart"
 organization	:= "de.djini"
-version			:= "2.6.0"
+version			:= "2.7.0"
 
 scalacOptions	++= Seq(
+	"-feature",
 	"-deprecation",
 	"-unchecked",
-	// "-language:implicitConversions",
-	// "-language:existentials",
-	// "-language:higherKinds",
-	// "-language:reflectiveCalls",
-	// "-language:dynamics",
-	// "-language:postfixOps",
-	// "-language:experimental.macros"
-	"-feature",
-	"-Xfatal-warnings"
+	"-Xfatal-warnings",
 )
 
-conflictManager	:= ConflictManager.strict
-addSbtPlugin("de.djini" % "xsbt-util"		% "1.4.0")
-addSbtPlugin("de.djini" % "xsbt-classpath"	% "2.4.0")
+conflictManager	:= ConflictManager.strict withOrganization "^(?!(org\\.scala-lang|org\\.scala-js|org\\.scala-sbt)(\\..*)?)$"
+addSbtPlugin("de.djini" % "xsbt-util"		% "1.5.0")
+addSbtPlugin("de.djini" % "xsbt-classpath"	% "2.7.0")

@@ -113,16 +113,23 @@ object WebStartPlugin extends AutoPlugin {
 	):File	= {
 		// BETTER copy and sign fresh jars only unless they did not exist before
 		val assetMap		= assets map { _.flatPathMapping } map (xu.pathMapping anchorTo buildDir)
-		streams.log info s"copying assets"
+		streams.log info s"copying assets into ${buildDir.getPath}"
 		val assetsToCopy	=
 			assetMap filter { case (source, target) =>
 				source.newerThan(target) ||
 				// TODO changing the alias used from the keyStore still does not re-sign anything
-				// enforce re-signing of all assets when the keyStore has changed
-				keyConfig.exists(_.keyStore.newerThan(target))
+				// TODO we should check file contents, not timestampf for mainfest and keystore
+				// enforce re-signing of all assets when the keyStore or the manifest have changed
+				keyConfig.exists(_.keyStore.newerThan(target))	||
+				manifest.exists(_.newerThan(target))
 			}
-		val assetsCopied	= IO copy assetsToCopy
+		// NOTE copy by default prevents overwriting existing, fresh files
+		// here, we _want_ to overwrite them so we can put the manifest and
+		// the signature on a fresh copy
+		val assetsCopied	= IO.copy(assetsToCopy, CopyOptions().withOverwrite(true))
+		streams.log info s"copied ${assetsCopied.size} assets"
 
+		// TODO aborting this with ctrl-c and re-running will not sign the already copied files any more!
 		val freshJars	= assetsCopied
 		if (freshJars.nonEmpty) {
 			if (manifest.isEmpty) {

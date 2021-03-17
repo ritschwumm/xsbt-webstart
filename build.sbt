@@ -6,7 +6,7 @@ sbtPlugin		:= true
 
 name			:= "xsbt-webstart"
 organization	:= "de.djini"
-version			:= "2.8.0"
+version			:= "2.9.0"
 
 scalacOptions	++= Seq(
 	"-feature",

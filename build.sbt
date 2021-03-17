@@ -1,8 +1,12 @@
+Global / onChangedBuildSource := ReloadOnSourceChanges
+
+ThisBuild / versionScheme := Some("early-semver")
+
 sbtPlugin		:= true
 
 name			:= "xsbt-webstart"
 organization	:= "de.djini"
-version			:= "2.7.0"
+version			:= "2.8.0"
 
 scalacOptions	++= Seq(
 	"-feature",

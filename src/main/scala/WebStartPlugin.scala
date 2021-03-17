@@ -109,16 +109,20 @@ object WebStartPlugin extends AutoPlugin {
 		manifest:Option[File],
 		extras:Traversable[PathMapping],
 		buildDir:File,
-		jarsignerVerifyOptions: Seq[String]
+		jarsignerVerifyOptions:Seq[String]
 	):File	= {
 		// BETTER copy and sign fresh jars only unless they did not exist before
 		val assetMap		= assets map { _.flatPathMapping } map (xu.pathMapping anchorTo buildDir)
 		streams.log info s"copying assets"
-		// BETTER care about freshness
-		val assetsToCopy	= assetMap filter { case (source, target) => source newerThan target }
+		val assetsToCopy	=
+			assetMap filter { case (source, target) =>
+				source.newerThan(target) ||
+				// TODO changing the alias used from the keyStore still does not re-sign anything
+				// enforce re-signing of all assets when the keyStore has changed
+				keyConfig.exists(_.keyStore.newerThan(target))
+			}
 		val assetsCopied	= IO copy assetsToCopy
 
-		// BETTER care about freshness
 		val freshJars	= assetsCopied
 		if (freshJars.nonEmpty) {
 			if (manifest.isEmpty) {
@@ -127,9 +131,9 @@ object WebStartPlugin extends AutoPlugin {
 			manifest foreach { manifest =>
 				streams.log info s"extending jar manifests"
 				val res:Safe[(String,File),ISeq[Unit]]	=
-						parDo(freshJars.toVector) { jar =>
-							extendManifest(manifest, jar, streams.log)
-						}
+					parDo(freshJars.toVector) { jar =>
+						extendManifest(manifest, jar, streams.log)
+					}
 				failSafe(res) { case (err,file) =>
 					streams.log error s"failed to extend manifest of jar $file: $err"
 					// try again next time instead of leaving an unextended jar lying around
@@ -143,9 +147,9 @@ object WebStartPlugin extends AutoPlugin {
 			keyConfig foreach { keyConfig =>
 				streams.log info s"signing jars"
 				val res:Safe[(String,File),ISeq[Unit]]	=
-						parDo(freshJars.toVector) { jar =>
-							signAndVerify(keyConfig, jar, jarsignerVerifyOptions, streams.log)
-						}
+					parDo(freshJars.toVector) { jar =>
+						signAndVerify(keyConfig, jar, jarsignerVerifyOptions, streams.log)
+					}
 				failSafe(res) { case (err,file) =>
 					streams.log error s"failed to sign jar $file: $err"
 					// try again next time instead of leaving an unextended jar lying around
@@ -164,7 +168,6 @@ object WebStartPlugin extends AutoPlugin {
 				assets sortBy { !_.main } map { cp:ClasspathAsset =>
 					JnlpAsset(cp.name, cp.main, cp.file.length)
 				}
-		// TODO util: zipBy
 		val configFiles:Seq[(JnlpConfig,File)]	= jnlpConfigs map { it => (it, buildDir / it.fileName) }
 		configFiles foreach { case (jnlpConfig, jnlpFile) =>
 			val xml:Elem	= jnlpConfig descriptor (jnlpConfig.fileName, sortedAssets)
